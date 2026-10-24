@@ -1,0 +1,130 @@
+# ignore all rom files
+*.z64
+*.n64
+*.v64
+
+#Ignore any custom boot files if any.
+boot_custom.bin 
+
+#compiled or ripped asm
+asm/*
+asm
+build/*
+build/
+
+#permuter folder
+nonmatchings/*
+nonmatchings/
+
+#binaries ripped from the ROMs
+assets/*
+assets_*/
+assets_*/*
+bin/
+bin/*
+ucode/*
+
+# Asset enums, since it is auto-generated.
+include/asset_enums.h
+
+#compiled object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Do not ignore .obj files in the mods/ directory
+!mods/**/*.obj
+
+#Precompiled Headers
+*.gch
+*.pch
+
+#compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+#static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+#Windows stuff
+*.bat
+*.exe
+
+#misc
+__pycache__/
+*__pycache__/
+expected/
+.*/
+ver/*.ld
+*.map
+*/*.map
+*auto.txt
+*_auto.*.txt
+*.*auto.txt
+*/.splat_cache
+.splat_cache
+.splat_cache*
+ctx.c
+ctx.c.m2c
+ctx_includes.c
+tools/n64crc
+!tools/build
+m2cfiles/
+tools/ido-recomp
+*.DS_Store
+tools/binutils
+*.d
+treemap.html
+docs/
+dkracing
+log.txt
+dkracing.elf
+cd/
+testcast
+pc/
+amap
+
+# Generated Dreamcast disc staging and images
+/cdrom/
+/*.cdi
+/dkracing-*.elf
+/bonus/dkr_music_player/cdrom/
+/bonus/dkr_music_player/include/songs.h
+/captures/
+
+# --- the Xbox port (RXDK) -------------------------------------------------
+# Nothing taken from the game is ever committed: you supply the ROM, and
+# setup.py makes the rest locally (baseroms/, assets/ and
+# include/asset_enums.h are covered above).
+!build.bat
+baserom.*
+# the disc's data folder: the ROM's assets
+/data/
+# the dashboard icons, made from the ROM's own portrait
+/Platform/xbox/gen/
+# the asset tool, the ROM version, the PC test harness and its captures
+/build/
+# generated per ROM (its version is a compile define): setup.py writes them
+/rxdk.project.json
+/Diddy-Kong-Racing-X.sln
+/Diddy-Kong-Racing-X.vcxproj
+/Diddy-Kong-Racing-X.vcxproj.filters
+# build output
+/out/
+/Xbox/
+/Diddy-Kong-Racing-X/
+*.iso
+*.xbe
+*.xbx
+*.pdb
+.vs/
+*.vcxproj.user
+# the release NFO, kept beside the repository, not in it
+*.nfo
+# the decomp's screenshots of the game: Rare's pictures, not ours to publish
+/media/

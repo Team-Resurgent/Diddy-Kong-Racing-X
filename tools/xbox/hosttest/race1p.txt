@@ -1,0 +1,37 @@
+# From the title to a race on Ancient Lake, one player (hosttest.exe --script).
+# Lines: FRAME PAD BUTTONS [X Y], or mMENU+K PAD BUTTONS [X Y] (K frames after
+# menu MENU opens: 0 title, 3 player select, 28 caution, 19 game select,
+# 15 track select). The race starts at about frame 1900; A is held from 2250.
+m0+60 0 S
+m0+64 0 -
+m0+120 0 S
+m0+124 0 -
+m3+60 0 A
+m3+64 0 -
+m3+120 0 A
+m3+124 0 -
+m28+60 0 A
+m28+64 0 -
+m19+40 0 - 0 -80
+m19+46 0 -
+m19+70 0 A
+m19+74 0 -
+m15+60 0 A
+m15+64 0 -
+m15+120 0 A
+m15+124 0 -
+m15+180 0 A
+m15+184 0 -
+m15+240 0 A
+m15+244 0 -
+m15+300 0 A
+m15+304 0 -
+m15+360 0 A
+m15+364 0 -
+2250 0 A
+2700 0 A 40 0
+2760 0 A
+2900 0 AR -60 0
+2960 0 A
+3100 0 AZ
+3110 0 A

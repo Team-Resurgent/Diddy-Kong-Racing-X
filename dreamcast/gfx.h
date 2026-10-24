@@ -1,0 +1,187 @@
+#ifndef LINUX_GFX_H
+#define LINUX_GFX_H
+
+// The state every batch reads, in the display-list walk (main.c) and here, is
+// some sixty small variables. Left to the linker they land in as many cache
+// lines, scattered among the big tables, and the operand cache is small and
+// direct-mapped: the vertex and recording traffic of a batch evicts them, and
+// the next batch misses on each one again. Marked with this they share one
+// section, a handful of lines.
+#define DKR_HOT __attribute__((section(".data.dkr_hot")))
+// The same for the code a batch runs through. The instruction cache is 8 KB
+// and direct-mapped too, and the walk's handlers, left where the linker puts
+// them, overlapped in it: batch after batch they evicted each other, and any
+// unrelated change that moved them made the frame faster or slower. KOS's
+// linker script gives .sub0 an address aligned to the cache size and fails
+// the link if it outgrows one cache's worth, so the hot handlers sit at a fixed
+// place in the cache and never on top of each other. Their cold paths are
+// split out of them to keep it that way.
+#if (defined(DKR_GFX_PROFILE) && DKR_GFX_PROFILE == 2) || (defined(DKR_FILL_PROF) && DKR_FILL_PROF)
+// The per-handler timers, and the fill profile's per-vertex calls, do not fit
+// in one cache's worth; they disturb the timing anyway. Kept together all the
+// same.
+#define DKR_HOT_CODE __attribute__((section(".text.dkr_hot")))
+#else
+#define DKR_HOT_CODE __attribute__((section(".sub0.dkr_hot")))
+#endif
+
+// Host graphics layer (linux/gfx.c) — SDL2 + OpenGL.
+//
+// Its own translation unit, plain C types only: SDL's headers pull in the
+// system <strings.h>/<stdint.h>, which collide with the N64 headers (os_libc.h's
+// bzero prototype, types.h's uintptr_t). The interpreter (linux/main.c) speaks
+// N64 types and talks to the renderer through this interface, never including
+// SDL itself.
+
+// A triangle corner, in N64 screen pixels (origin top-left, y down). `z` is the
+// perspective-divided depth, negated so nearer is smaller (GL_LESS). `u`/`v` are
+// normalised texture coordinates.
+//
+// `w` is the clip-space w the vertex was divided by (camera-space depth). The
+// position is already divided, but GL still needs w to interpolate texture
+// coordinates perspective-correctly (see gfx_draw_tris). Screen-space geometry
+// that never went through projection passes w = 1.
+// `fog` is how far the vertex is faded into the fog colour, 0..1: the factor the
+// RSP computes and the RDP's blender applies after texturing. Rides in GL's fog
+// coordinate; the DC port passes the same number to the PVR in the vertex's
+// offset-colour alpha (PVR_FOG_VERTEX).
+typedef struct {
+    float x, y, z, w;
+    float u, v;
+    float fog;
+    unsigned char r, g, b, a;
+} __attribute__((aligned(32))) GfxTriVert;
+
+// Opens the window and GL context. `width`/`height` are the N64 framebuffer
+// size the interpreter draws in; the window is that times `scale`.
+void gfx_window_init(int width, int height, int scale);
+
+void gfx_frame_begin(void);
+
+// Uploads an RGBA8888 image and returns a handle for gfx_bind_texture().
+// `cmS`/`cmT` are the RDP's raw 2-bit clamp/mirror fields for each axis
+// (G_TX_WRAP / G_TX_MIRROR / G_TX_CLAMP).
+unsigned int gfx_create_texture(const void *rgba, int width, int height, int cmS, int cmT);
+unsigned int gfx_adopt_texture(void *data, int width, int height, int pw, int ph, unsigned int format,
+                               int mipmapped, int kind);
+void gfx_texture_set_wrap(unsigned int handle, int cmS, int cmT);
+
+// Binds a texture for subsequent draws. Handle 0 means untextured (the
+// triangles are then shaded from vertex colours alone).
+void gfx_bind_texture(unsigned int handle);
+
+// Point- or bilinear-samples the bound texture (RDP G_TF_POINT vs G_TF_BILERP).
+// Call after gfx_bind_texture(): the filter is state on the texture object.
+void gfx_set_texture_filter(int point);
+
+// Fades fragments towards `color` by each vertex's fog coordinate. Off for the 2D
+// layer and any material without G_FOG.
+void gfx_set_fog(int enable, const unsigned char color[4]);
+
+// Texel/vertex-colour combine. `modulate` is texel * colour (3D geometry).
+// `blend` lerps from vertex colour to `color` by the texel: a combiner blending
+// a texture towards a constant, e.g. the menu's flashing text highlight.
+void gfx_set_texenv_blend(const unsigned char color[4]);
+void gfx_set_texenv_modulate(void);
+
+// Releases a texture created by gfx_create_texture().
+void gfx_delete_texture(unsigned int handle);
+
+// Draws `count` vertices as GL_TRIANGLES — i.e. count/3 triangles, Gouraud
+// shaded from the vertex colours and modulated by the bound texture.
+void gfx_draw_tris(const GfxTriVert *verts, int count);
+
+// Blast streaming (the native static-geometry path; see gfx.c). Routes and
+// submits scissor + header for the current state, and returns the bound
+// texture's NPOT UV scales plus the N64-pixels -> framebuffer scale. The caller
+// then writes at most `maxWords` PVR vertices: to the store queues
+// (pvr_dr_target/pvr_dr_commit) when *record is NULL, otherwise consecutively
+// from *record, passing where it stopped to gfx_blast_end(). Returns 0 when the
+// state needs a path this contract doesn't cover (punch-through, texenv blend,
+// exact scissor), and the caller must use gfx_draw_tris instead.
+int gfx_blast_viable(void); // begin() would accept the current state (cheap precheck)
+int gfx_blast_begin(float *uScale, float *vScale, float *scaleX, float *scaleY, int maxWords,
+                    void **record, int emitAlpha, float *zMul, float *zAdd);
+void gfx_blast_end(void *recordEnd);
+
+// TA words recorded so far this frame for the punch-through and translucent
+// lists (32 bytes each; a triangle is three). For the frame profile.
+void gfx_recorded_words(int *pt, int *tr);
+
+// A native polygon in the translucent list, at this point of the display list
+// (dreamcast/scrawl.c). Vertex x/y are N64 pixels. 0 if the recording is full.
+#include <dc/pvr.h>
+int gfx_tr_native(const pvr_poly_hdr_t *hdr, const pvr_vertex_t *verts, int count);
+// The same in the opaque list, streamed as it comes (dreamcast/swirl.c).
+int gfx_op_native(const pvr_poly_hdr_t *hdr, const pvr_vertex_t *verts, int count);
+
+// Every colour drawn from here on scaled by keep / 255 (red, green, blue; not
+// alpha), for a fade to black drawn into the frame (dreamcast/cover.h). 255
+// draws colours as they are.
+void gfx_set_fade(int keep);
+extern int gDcFadeOn;
+extern unsigned char gDcFadeLut[256];
+
+static inline unsigned int gfx_fade_argb(unsigned int c) {
+    if (!gDcFadeOn) {
+        return c;
+    }
+    return (c & 0xFF000000u) | ((unsigned int) gDcFadeLut[(c >> 16) & 0xFF] << 16) |
+           ((unsigned int) gDcFadeLut[(c >> 8) & 0xFF] << 8) | gDcFadeLut[c & 0xFF];
+}
+
+// While set, opaque untextured 2D batches are a cover over the whole scene,
+// drawn in the opaque list; see gfx.c. The display list sets it (PC_COVER_*).
+void gfx_set_cover(int enable);
+
+// Fill profile (FILL_PROF=1, see gfx.c): the display list's category, one
+// vertex as it goes out in framebuffer pixels, the start of each frame's
+// walk, and the per-scene report.
+void gfx_prof_set_category(int cat);
+void gfx_prof_fill_vert(float x, float y, int eol);
+void gfx_fill_frame(int counted);
+void gfx_fill_frame_done(unsigned int renderUs);
+void gfx_fill_report(void);
+void gfx_prof_set_skip(int code);
+
+// Whether the surface blends with what is behind it (RDP FORCE_BL). One that
+// does not is opaque whatever its alpha says, and goes to the opaque list.
+void gfx_set_blend(int enable);
+
+// Depth test on/off (RDP Z_CMP). The 2D overlay (text, HUD, fades) draws with
+// the z-buffer disabled and relies on display-list order, as the game does: it
+// clears G_ZBUFFER before every rectangle.
+void gfx_set_depth_test(int enable);
+
+// Depth writes on/off (RDP Z_UPD). Translucent surfaces test against the
+// z-buffer without writing, so what's behind them still draws.
+void gfx_set_depth_write(int enable);
+
+// Nudges fragments towards the viewer (RDP ZMODE_DEC): a decal (tyre tracks,
+// shadows, track markings) sits on the surface under it without z-fighting.
+void gfx_set_depth_offset(int enable);
+
+// Discards fragments whose alpha is not greater than `ref` (0..1); the RDP's
+// alpha compare. ref 0 still drops fully transparent texels, which would
+// otherwise write depth and punch holes in the geometry behind them.
+void gfx_set_alpha_test(float ref);
+
+// Clips drawing to a rectangle in N64 screen pixels (origin top-left, y down),
+// lower-right corner inclusive; the RDP's G_SETSCISSOR. Confines each player to
+// their half in split-screen and clips scrolling text to its box.
+void gfx_set_scissor(float x0, float y0, float x1, float y1);
+
+// Drops back to drawing over the whole framebuffer.
+void gfx_disable_scissor(void);
+
+// Presents the frame and pumps the event queue (exits the process on quit).
+void gfx_frame_end(void);
+// ENJ_RENDER=1: submit a frame through enDjinn's render lists, calling `walk`
+// inside the opaque list where gfx_frame_begin/gfx_frame_end would bracket it.
+void gfx_frame_render(void (*walk)(void *), void *data);
+// ENJ_LOOP=1: queue the same renderers for enDjinn's loop to submit, and finish
+// the frame once it has (enDjinn's post-render callback).
+void gfx_frame_queue(void (*walk)(void *), void *data);
+void gfx_frame_submitted(void);
+
+#endif

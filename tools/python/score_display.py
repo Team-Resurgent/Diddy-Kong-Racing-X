@@ -1,0 +1,155 @@
+import json
+import argparse
+
+def readScoreDisplayJson(filename='./tools/python/score_progress.json'):
+    with open(filename, 'r') as inFile:
+        return json.loads(inFile.read())
+
+TOTAL_NUMBER_OF_BALLOONS = 47
+TOTAL_NUMBER_OF_KEYS = 4
+TOTAL_NUMBER_OF_TT_AMULETS = 4
+TOTAL_NUMBER_OF_WIZPIG_AMULETS = 4
+TOTAL_NUMBER_OF_TROPHIES = 5
+
+DEFAULT_MAX_LENGTH = 42
+
+ROUND_NAMES = ['One', 'Two', 'Three', 'Four']
+
+class ScoreDisplay:
+    def __init__(self):
+        self.progressNodes = readScoreDisplayJson()
+
+    def getStatus(self, percentage):
+        if percentage >= 100.0:
+            return {
+                "Balloon": TOTAL_NUMBER_OF_BALLOONS,
+                "Key": TOTAL_NUMBER_OF_KEYS,
+                "TTAmulet": TOTAL_NUMBER_OF_TT_AMULETS,
+                "WizpigAmulet": TOTAL_NUMBER_OF_WIZPIG_AMULETS,
+                "Trophy": TOTAL_NUMBER_OF_TROPHIES,
+                "Msg": "COMPLETED!"
+            }
+        out = {
+            "Balloon": 0,
+            "Key": 0,
+            "TTAmulet": 0,
+            "WizpigAmulet": 0,
+            "Trophy": 0,
+            "Msg": 'Not Started'
+        }
+        if percentage <= 0.0:
+            return out
+        numberOfCompletedNodes = int((percentage / 100.0) * len(self.progressNodes))
+        currentNodeProgress = ((percentage / 100.0) * len(self.progressNodes)) - numberOfCompletedNodes
+        for i in range(0, numberOfCompletedNodes):
+            rewards = self.progressNodes[i]["rewards"]
+            for reward in rewards:
+                out[reward] += rewards[reward]
+        out['Msg'] = self.progressNodes[numberOfCompletedNodes]['msg']
+        nodeType = self.progressNodes[numberOfCompletedNodes]['type']
+        if nodeType == 'Race':
+            out['Msg'] += f' (Lap {int(currentNodeProgress*3)+1}/3)'
+        elif nodeType == 'Collecting':
+            collectingName = self.progressNodes[numberOfCompletedNodes]['collecting']['name']
+            collectingMax = self.progressNodes[numberOfCompletedNodes]['collecting']['max']
+            out['Msg'] += f' ({int(currentNodeProgress * collectingMax)}/{collectingMax} {collectingName}s)'
+        elif nodeType == 'SilverCoinsRace':
+            out['Msg'] += f' ({int(currentNodeProgress*9)}/8 silver coins)'
+        elif nodeType == 'TrophyRace':
+            out['Msg'] += f' (Round {ROUND_NAMES[int(min(currentNodeProgress, 1.0)*4)]}, Lap {int(currentNodeProgress*12)%3+1}/3)'
+        elif nodeType == 'Battle':
+            if currentNodeProgress < 0.34:
+                out['Msg'] += ' (3 opponents remain)'
+            elif currentNodeProgress < 0.67:
+                out['Msg'] += ' (2 opponents remain)'
+            elif currentNodeProgress < 1.00:
+                out['Msg'] += ' (1 opponent remains)'
+        return out
+
+    def makeLine(self, char, length, title=None):
+        if title == None:
+            return ' ' + (char * length) + '\n'
+        else:
+            lineSideLength = (length - len(title) - 2) // 2
+            leftLength = lineSideLength
+            rightLength = lineSideLength
+            if (leftLength + rightLength + len(title) + 2) < length:
+                rightLength += 1
+            if leftLength + rightLength <= 0:
+                if leftLength + rightLength == 0:
+                    return '  ' + title + '\n'
+                else:
+                    return ' ' + title + '\n'
+            else:
+                return ' ' + (char * leftLength) + ' ' + title + \
+                        (' ' + char * rightLength if char != ' ' else '') + '\n'
+
+    def getGameStatusDisplay(self, status, dashLen):
+        out = ''
+        out += self.makeLine('-', dashLen, 'Game Status')
+        firstStatusLine = ''
+        secondStatusLine = ''
+        firstStatusLine += 'Balloons: {:}/{:},'.format(status['Balloon'], TOTAL_NUMBER_OF_BALLOONS)
+        firstStatusLine += ' Keys: {:}/{:},'.format(status['Key'], TOTAL_NUMBER_OF_KEYS)
+        firstStatusLine += ' Trophies: {:}/{:}'.format(status['Trophy'], TOTAL_NUMBER_OF_TROPHIES)
+        secondStatusLine += 'T.T. Amulets: {:}/{:},'.format(status['TTAmulet'], TOTAL_NUMBER_OF_TT_AMULETS)
+        secondStatusLine += ' Wizpig Amulets: {:}/{:}'.format(status['WizpigAmulet'], TOTAL_NUMBER_OF_WIZPIG_AMULETS)
+        out += self.makeLine(' ', dashLen, firstStatusLine)
+        out += self.makeLine(' ', dashLen, secondStatusLine)
+        out += self.makeLine('-', dashLen)
+        out += self.makeLine(' ', dashLen, status['Msg'])
+        return [out, dashLen]
+
+    def getDisplay(self, advOnePer, advOneNonMatchPer, advTwoPer, showFlags=3, version='us.v77', totalDecompFunctions=0, totalHandrwittenAsm=0, totalGlobalAsm=0, totalNonMatching=0, totalNonEquivalent=0, totalDocumented=0, totalUndocumented=0, totalNamedFunc=0, totalUncommented=0):
+        advOneStatus = self.getStatus(advOnePer)
+        advTwoStatus = self.getStatus(advTwoPer)
+        if showFlags == 3:
+            dashLen = max(len(advOneStatus['Msg']), len(advTwoStatus['Msg']), DEFAULT_MAX_LENGTH)
+        elif showFlags == 1:
+            dashLen = max(len(advOneStatus['Msg']), DEFAULT_MAX_LENGTH)
+        elif showFlags == 2:
+            dashLen = max(len(advTwoStatus['Msg']), DEFAULT_MAX_LENGTH)
+        else:
+            dashLen = DEFAULT_MAX_LENGTH
+        advOneGameStatusDisplay = self.getGameStatusDisplay(advOneStatus, dashLen)
+        advTwoGameStatusDisplay = self.getGameStatusDisplay(advTwoStatus, dashLen)
+        out = ''
+        if showFlags & 1:
+            out += self.makeLine('=', dashLen)
+            out += self.makeLine(' ', dashLen, 'ADVENTURE ONE (ASM -> C Decompilation) ' + '[{:s}]'.format(version))
+            if advOnePer >= 100.0:
+                out += self.makeLine('-', dashLen, '{:5.1f}% Complete'.format(advOnePer))
+            else:
+                out += self.makeLine('-', dashLen, '{:5.2f}% Complete ({:5.2f}% NON_MATCHING)'.format(advOnePer, advOneNonMatchPer))
+            out += self.makeLine(' ', dashLen, '# Decompiled functions: ' + str(totalDecompFunctions))
+            out += self.makeLine(' ', dashLen, '# Handwritten ASM functions: ' + str(totalHandrwittenAsm))
+            out += self.makeLine(' ', dashLen, '# GLOBAL_ASM remaining: ' + str(totalGlobalAsm))
+            out += self.makeLine(' ', dashLen, '# NON_MATCHING functions: ' + str(totalNonMatching))
+            out += self.makeLine(' ', dashLen, '# NON_EQUIVALENT WIP functions: ' + str(totalNonEquivalent))
+            out += advOneGameStatusDisplay[0]
+        if showFlags & 2:
+            out += self.makeLine('=', dashLen)
+            out += self.makeLine(' ', dashLen, '  ADVENTURE TWO (Cleanup & Documentation)')
+            if advTwoPer >= 100.0:
+                out += self.makeLine('-', dashLen, '{:5.1f}% Complete'.format(advTwoPer))
+            else:
+                out += self.makeLine('-', dashLen, '{:5.2f}% Complete'.format(advTwoPer))
+            out += self.makeLine(' ', dashLen, '# Documented functions: ' + str(totalDocumented))
+            out += self.makeLine(' ', dashLen, '# Undocumented remaining: ' + str(totalUndocumented))
+            out += self.makeLine(' ', dashLen, '# Functions named `func_*`: ' + str(totalNamedFunc))
+            out += self.makeLine(' ', dashLen, '# Functions without comments: ' + str(totalUncommented))
+            out += advTwoGameStatusDisplay[0]
+        out += self.makeLine('=', dashLen)[:-1]
+        return out
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("adventureOnePercentage", help="Value within [0.0, 100.0] that describes how complete the decomp is.")
+    parser.add_argument("adventureTwoPercentage", help="Value within [0.0, 100.0] that describes how complete the documentation is.")
+    parser.add_argument("-a", "--adventure", help="(Optional) Only shows adventure 1 or 2 based on passed in value.", choices=['1', '2'])
+    args = parser.parse_args()
+    adventureSelect = 3 # Show both adventures by default
+    if args.adventure != None:
+        adventureSelect = int(args.adventure)
+    scoreDisplay = ScoreDisplay()
+    print(scoreDisplay.getDisplay(float(args.adventureOnePercentage), float(args.adventureOnePercentage), float(args.adventureTwoPercentage), adventureSelect))

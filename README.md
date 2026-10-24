@@ -40,6 +40,8 @@ machine.
   decomp's Linux port had left silent) and the reverb in caves and tunnels
   (which its Dreamcast port drops to save CPU)
 * Four controllers, rumble on every pad
+* Time-trial ghosts kept between sessions: every pad has a Controller Pak
+  in it too, kept on the hard disk
 * A chase camera that would slip into a wall (in some tunnels) is drawn in
   closer to your racer instead of looking through it
 * Saves (the three adventure files, best times, options) kept on the Xbox's
@@ -142,12 +144,15 @@ Diddy Kong Racing saves to the N64 cartridge's EEPROM: the three adventure
 files, the best times and the options. Here that is `eeprom.bin` in the save
 game **Diddy Kong Racing** on the hard disk, written a moment after the game
 saves. The dashboard lists it under **Diddy Kong Racing X** with the game's
-icon and can copy or delete it;
-deleting it starts the game afresh.
+icon and can copy or delete it; deleting it starts the game afresh.
 
-Every controller has a Rumble Pak in it, as far as the game can tell. There
-is no Controller Pak, so time-trial ghosts are not kept between sessions
-(within a session they work as on the N64).
+On the N64 a controller held a Controller Pak (where the game keeps
+time-trial ghosts) or a Rumble Pak, not both. Here every controller has a
+pak that is both: it rumbles, and its notes are kept beside the EEPROM as
+`cpak1.bin` to `cpak4.bin`, one for each controller port, made the first time
+the game saves to that pak. Ghosts are saved to controller 1's pak, as on the
+N64. Hold **START** while the game starts for the game's own Controller Pak
+screen, to see or delete what is on each pak.
 
 ## Testing without a console
 
@@ -173,14 +178,14 @@ frame.
 | --- | --- |
 | `src/`, `libultra/`, `include/` | the decompilation, compiled as its Linux port compiles it (`TARGET_PC`) |
 | `Platform/xbox/dkr_dl.c` | the display-list interpreter (from `linux/main.c`) |
-| `Platform/xbox/dkr_host.c` | the N64 OS underneath: the asset "ROM", controllers, EEPROM, rumble paks, timers |
+| `Platform/xbox/dkr_host.c` | the N64 OS underneath: the asset "ROM", controllers, EEPROM, Controller and Rumble Paks, timers |
 | `Platform/xbox/dkr_audio.c` | the audio interface, running the game's audio manager after each frame |
 | `Platform/xbox/dkr_scene.c`, `dkr_boot.c` | the game's hooks, and the way in |
 | `linux/audio_hle.c` | the RSP audio microcode, in C (the Linux port's, unchanged) |
 | `dreamcast/frame_interp.c` | 60 fps interpolation (the Dreamcast port's, unchanged) |
 | `Platform/xbox/gfx_xbox.c` | Direct3D 8 |
 | `Platform/xbox/xbox_*.c` | the entry point and pacer, DirectSound, the pads, the save |
-| `tools/xbox/` | `xbconfig.py` (how it is compiled), the manifest and project writers, the icons, `cc_check.py` (every compile error at once), `release_check.py` |
+| `tools/xbox/` | `xbconfig.py` (how it is compiled), the manifest and project writers, the icons, `cc_check.py` (every compile error at once), `release_check.py`, `xbe_symbolize.py` (names the addresses in a crash report from the console's debug output) |
 
 The decompilation's own README, with its N64, Dreamcast and Linux builds, is
 [README.dreamcast.md](README.dreamcast.md).
