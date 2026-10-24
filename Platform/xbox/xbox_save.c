@@ -1,13 +1,14 @@
-/* xbox_save.c -- the N64's EEPROM and Controller Paks, kept on the hard disk.
+/* xbox_save.c -- the N64's EEPROM and Controller Paks, and the port's own
+ * settings, kept on the hard disk.
  *
  * Everything Diddy Kong Racing saves to the cartridge -- the three adventure
  * slots, the best times and the options -- is its 512-byte EEPROM; the
  * time-trial ghosts go to the Controller Pak in a controller. Here they are
  * eeprom.bin and cpak1.bin..cpak4.bin (one for each controller port, made the
- * first time the game writes to that pak) in the title's save game "Diddy
- * Kong Racing": the dashboard lists it under the game, with the save icon,
- * and can copy or delete it like any other (deleting it starts the game
- * afresh).
+ * first time the game writes to that pak), with settings.bin (the settings
+ * menu's, dkr_settings.c), in the title's save game "Diddy Kong Racing": the
+ * dashboard lists it under the game, with the save icon, and can copy or
+ * delete it like any other (deleting it starts the game afresh).
  *
  * The game writes a save as a burst of small writes over a few frames; each
  * file is written once its burst is over, beside the old one and then put in
@@ -17,14 +18,16 @@
 #include <string.h>
 
 #include "dkr_host.h"
+#include "dkr_settings.h"
 #include "xbox_port.h"
 
 #define SAVE_NAME L"Diddy Kong Racing"
 #define QUIET_FRAMES 30 /* frames with no write before a file is stored */
 
-/* what is stored: the EEPROM, then each port's Controller Pak */
+/* what is stored: the EEPROM, the settings, then each port's Controller Pak */
 #define SLOT_EEPROM 0
-#define SLOT_CPAK 1
+#define SLOT_SETTINGS 1
+#define SLOT_CPAK 2
 #define SLOTS (SLOT_CPAK + HOST_PADS)
 
 static char sDir[MAX_PATH];
@@ -74,6 +77,11 @@ static void slot_names(int slot, char *name, char *tmp)
     {
         strcpy(name, "eeprom.bin");
         strcpy(tmp, "eeprom.tmp");
+    }
+    else if (slot == SLOT_SETTINGS)
+    {
+        strcpy(name, "settings.bin");
+        strcpy(tmp, "settings.tmp");
     }
     else
     {
@@ -129,6 +137,16 @@ void host_cpak_changed(int port)
         sQuiet[SLOT_CPAK + port] = 0;
 }
 
+int host_settings_load(uint8_t *buf, int size)
+{
+    return load(SLOT_SETTINGS, buf, size);
+}
+
+void host_settings_changed(void)
+{
+    sQuiet[SLOT_SETTINGS] = 0;
+}
+
 /* the save game's folder flushed too: the new folder and file entries, not
  * only the file's bytes, on the disk before anyone resets the console (an
  * in-game reset or the power button skips the cache's own flush) */
@@ -158,6 +176,11 @@ static int store(int slot)
     {
         img = dkr_eeprom_image();
         len = (DWORD)dkr_eeprom_size();
+    }
+    else if (slot == SLOT_SETTINGS)
+    {
+        img = dkr_settings_image();
+        len = (DWORD)dkr_settings_size();
     }
     else
     {

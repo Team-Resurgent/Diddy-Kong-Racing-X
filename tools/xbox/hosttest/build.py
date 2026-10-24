@@ -64,6 +64,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-j", type=int, default=os.cpu_count() or 4)
     a = ap.parse_args()
+    # the settings menu's font, embedded (setup.py makes it too)
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "gen_font.py")], check=True)
     vs, cc = vs_install()
     env32 = vs_env32(vs)
     res_dir = subprocess.run([cc, "-print-resource-dir"], capture_output=True, text=True).stdout.strip()

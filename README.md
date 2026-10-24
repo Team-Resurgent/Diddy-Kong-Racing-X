@@ -44,6 +44,9 @@ machine.
   in it too, kept on the hard disk
 * A chase camera that would slip into a wall (in some tunnels) is drawn in
   closer to your racer instead of looking through it
+* A settings menu of the port's own, on the right stick's click: the camera
+  at walls, inverted plane controls, rumble strength, 30 or 60 FPS, sharp
+  or smooth textures
 * Saves (the three adventure files, best times, options) kept on the Xbox's
   hard disk (dashboard > Memory > Diddy Kong Racing X)
 * Optional: start from a 100%-completed save (`--unlock-all`, below)
@@ -132,11 +135,29 @@ Xbox Debugger (RXDK). The build lands where the command-line one does:
 | BLACK | C-down | course directions; the split-screen HUD |
 | WHITE | C-right | the speedometer |
 | Right stick | C buttons | as above, by direction |
+| Right stick click | | the port's settings menu (below) |
 | BACK | L | |
 | START | START | pause |
 
 Player 1 is the first controller plugged in, player 2 the next, and so on.
 **BACK + START + both triggers** returns to the dashboard.
+
+## Settings menu
+
+**Click the right stick** at any time for the port's own settings. The game
+stops exactly where it is while the menu is open, mid-race included, and
+carries on from there when it closes (**B**, the right stick again, or *Back
+to the game*). Up and down choose a setting, left and right (or **A**)
+change it. Every setting starts as the game plays without it, and they are
+kept on the hard disk (`settings.bin`, beside the save).
+
+| Setting | Choices | |
+| --- | --- | --- |
+| Camera at walls | **Keep out**, original | a chase camera that would slip into a wall is drawn in closer to your racer; *original* lets it look through |
+| Plane up/down | **Normal**, inverted | inverted: push up to climb |
+| Rumble | **High**, medium, low, off | |
+| Frame rate | **60 FPS**, 30 FPS | 30 is the N64's: each frame a whole physics step, none drawn in between |
+| Textures | **Smooth**, sharp | sharp: every texture unfiltered |
 
 ## Saving
 
@@ -181,6 +202,7 @@ frame.
 | `Platform/xbox/dkr_host.c` | the N64 OS underneath: the asset "ROM", controllers, EEPROM, Controller and Rumble Paks, timers |
 | `Platform/xbox/dkr_audio.c` | the audio interface, running the game's audio manager after each frame |
 | `Platform/xbox/dkr_scene.c`, `dkr_boot.c` | the game's hooks, and the way in |
+| `Platform/xbox/dkr_menu.c`, `dkr_overlay.c`, `dkr_settings.c` | the settings menu: freezing the game, drawing in HD, and the settings kept on disk |
 | `linux/audio_hle.c` | the RSP audio microcode, in C (the Linux port's, unchanged) |
 | `dreamcast/frame_interp.c` | 60 fps interpolation (the Dreamcast port's, unchanged) |
 | `Platform/xbox/gfx_xbox.c` | Direct3D 8 |
@@ -201,6 +223,11 @@ committed is a ROM, game data, a build output, or a path on your own machine.
   and Linux ports this is built from
 * The KallistiOS and enDjinn projects behind the Dreamcast port
 * The RXDK
+* The settings menu's font, [Fredoka](https://github.com/hafontia/Fredoka-One)
+  by the Fredoka Project Authors, under the SIL Open Font License 1.1
+  (`Platform/xbox/fonts/OFL.txt`)
+* [stb_truetype](https://github.com/nothings/stb) by Sean Barrett, which
+  draws it (public domain or MIT, `Platform/xbox/third_party/stb_truetype.h`)
 * Rare, for the game
 
 Diddy Kong Racing is a trademark of Nintendo and Rare. This project is not

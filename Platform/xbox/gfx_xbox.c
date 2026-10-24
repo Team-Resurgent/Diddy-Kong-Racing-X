@@ -520,6 +520,16 @@ void gfx_set_scissor(float x0, float y0, float x1, float y1)
         IDirect3DDevice8_SetScissors(sDev, 1, FALSE, &r);
 }
 
+void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top)
+{
+    /* sOffX/Y carry Direct3D's half-pixel shift; the pixel edges are half a
+     * pixel on */
+    *scaleX = sScaleX;
+    *scaleY = sScaleY;
+    *left = sOffX + 0.5f;
+    *top = sOffY + 0.5f;
+}
+
 void gfx_disable_scissor(void)
 {
     sScissorEmpty = 0;

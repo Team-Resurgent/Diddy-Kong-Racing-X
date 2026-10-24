@@ -302,6 +302,7 @@ def step_xbox(version, unlock):
     elif not unlock and os.path.isfile(flag):
         os.remove(flag)
     tool("make_icons.py")
+    tool("gen_font.py")
     tool("gen_manifest.py")
     if os.path.isfile(xbconfig.rxdk_cli()):
         tool("gen_vcxproj.py")

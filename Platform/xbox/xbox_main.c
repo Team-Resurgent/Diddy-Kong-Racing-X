@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "dkr_host.h"
+#include "dkr_settings.h"
 #include "xbox_port.h"
 
 #define DATA_DIR "D:\\data\\"
@@ -102,6 +103,9 @@ int32_t pc_retrace_wait(void)
     DWORD now = vblanks();
     int hz = xb_gfx_refresh();
     int periods;
+    /* fields a frame: the build's (60 frames a second), or two -- the
+     * settings menu's 30, each frame a whole physics step, none drawn between */
+    int rate = (dkr_setting(DKR_SET_FRAME_RATE) == DKR_FRAME_RATE_30) ? 2 : DKR_LOGIC_RATE;
 
     if (!sPacerStarted || sPacerReset)
     {
@@ -109,10 +113,10 @@ int32_t pc_retrace_wait(void)
         sPacerReset = 0;
         sLastVbl = now;
         sFieldAcc = 0;
-        return DKR_LOGIC_RATE;
+        return rate;
     }
     xb_at_game = XB_AT_VBLANK;
-    while (now - sLastVbl < (DWORD)DKR_LOGIC_RATE)
+    while (now - sLastVbl < (DWORD)rate)
     {
         D3DDevice_BlockUntilVerticalBlank();
         now = vblanks();
@@ -124,7 +128,7 @@ int32_t pc_retrace_wait(void)
          * time; count afresh from now */
         sLastVbl = now;
         sFieldAcc = 0;
-        return DKR_LOGIC_RATE;
+        return rate;
     }
     sFieldAcc += (int)(now - sLastVbl) * 60;
     sLastVbl = now;

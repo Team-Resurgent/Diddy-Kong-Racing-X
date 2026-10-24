@@ -103,7 +103,8 @@ LIBULTRA_SOURCES = ["libultra/src/" + s for s in [
 HOST_SOURCES = [
     "Platform/xbox/dkr_audio.c", "Platform/xbox/dkr_boot.c",
     "Platform/xbox/dkr_dl.c", "Platform/xbox/dkr_host.c",
-    "Platform/xbox/dkr_scene.c",
+    "Platform/xbox/dkr_menu.c", "Platform/xbox/dkr_overlay.c",
+    "Platform/xbox/dkr_scene.c", "Platform/xbox/dkr_settings.c",
     "linux/audio_hle.c", "dreamcast/frame_interp.c",
 ]
 

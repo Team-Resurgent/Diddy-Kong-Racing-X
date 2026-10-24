@@ -168,6 +168,12 @@ void gfx_disable_scissor(void)
     sScY1 = FB_H;
 }
 
+void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top)
+{
+    *scaleX = *scaleY = (float)SCALE;
+    *left = *top = 0.0f;
+}
+
 static int wrap(int i, int n, int cm)
 {
     if (cm & 2)

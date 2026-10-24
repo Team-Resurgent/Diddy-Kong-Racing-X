@@ -64,4 +64,9 @@ void gfx_disable_scissor(void);
 // Presents the frame.
 void gfx_frame_end(void);
 
+// Where the N64 screen lies on the display: N64 x lands on the edge between
+// display pixels x * scaleX + left (y likewise). The settings menu's HD drawing
+// (dkr_overlay.c) puts its text on whole display pixels by it.
+void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top);
+
 #endif

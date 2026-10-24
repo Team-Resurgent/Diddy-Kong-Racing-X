@@ -1,4 +1,7 @@
 #include "racer.h"
+#ifdef TARGET_XBOX
+#include "dkr_settings.h"
+#endif
 #include "memory.h"
 #include "menu.h"
 #include "video.h"
@@ -4335,6 +4338,13 @@ void update_player_racer(Object *obj, s32 updateRate) {
                     gCurrentStickX = -gCurrentStickX;
                 }
                 gCurrentStickY = input_clamp_stick_y(tempVar);
+#ifdef TARGET_XBOX
+                // the settings menu's inverted plane: push up to climb
+                if (tempRacer->vehicleID == VEHICLE_PLANE &&
+                    dkr_setting(DKR_SET_PLANE_STICK) == DKR_PLANE_INVERTED) {
+                    gCurrentStickY = -gCurrentStickY;
+                }
+#endif
                 gCurrentRacerInput = input_held(tempVar);
                 gCurrentButtonsPressed = input_pressed(tempVar);
                 gCurrentButtonsReleased = input_released(tempVar);

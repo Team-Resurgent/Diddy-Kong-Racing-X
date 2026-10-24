@@ -25,6 +25,9 @@
 #define HOST_BTN_CDOWN 0x0004
 #define HOST_BTN_CLEFT 0x0002
 #define HOST_BTN_CRIGHT 0x0001
+// Not the N64's: a bit its controller never sets, for the port's settings menu
+// (the right stick's click on the Xbox). Kept from the game (dkr_host.c).
+#define HOST_BTN_MENU 0x0080
 
 // One N64 controller as the game sees it.
 typedef struct {
@@ -62,6 +65,11 @@ void host_eeprom_changed(void);
 int host_cpak_load(int port, uint8_t *buf, int size);
 // The game changed a pak; the platform stores dkr_cpak_image(port) when ready.
 void host_cpak_changed(int port);
+
+// The port's own settings (dkr_settings.h), kept as for the EEPROM: nonzero when
+// `buf` was filled; changed means store dkr_settings_image() when ready.
+int host_settings_load(uint8_t *buf, int size);
+void host_settings_changed(void);
 
 // A recursive lock fencing the game's sound state against an audio thread
 // (osSetIntMask, see dkr_host.c). The audio manager runs on the game's thread

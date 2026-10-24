@@ -21,6 +21,7 @@
 #include <f3ddkr.h>
 
 #include "dkr_gfx.h"
+#include "dkr_settings.h"
 #include "set_rsp_segment.h"
 
 #define N64_SCREEN_W 320
@@ -801,7 +802,8 @@ static void emit_triangle(const GfxVertex *v0, const GfxVertex *v1, const GfxVer
 static void apply_texture_filter(void) {
     u32 filt = sOtherModeH & (3 << G_MDSFT_TEXTFILT);
 
-    gfx_set_texture_filter(filt == G_TF_POINT);
+    // the settings menu's "sharp" samples every texture unfiltered
+    gfx_set_texture_filter(filt == G_TF_POINT || dkr_setting(DKR_SET_TEXTURES) == DKR_TEXTURES_SHARP);
 }
 
 static void apply_render_mode(void) {
@@ -1541,11 +1543,26 @@ static void run_dl(const Gfx *dl, s32 count, s32 depth) {
     }
 }
 
-/**
- * The RSP task: one frame's display list, from src/rcp_dkr.c. Drawn and
- * presented before this returns, so the task completes at once.
- */
-void pc_gfx_task_submit(void *dlBegin, void *dlEnd) {
+// The port's settings menu (dkr_menu.c).
+s32 dkr_menu_update(void);
+void dkr_menu_draw(void);
+
+/** The full screen as the clip rect: the menu's, over whatever the frame left. */
+static void clip_full_screen(void) {
+    sScisX0 = sVpClipX0 = 0.0f;
+    sScisY0 = sVpClipY0 = 0.0f;
+    sScisX1 = sVpClipX1 = (f32) N64_SCREEN_W;
+    sScisY1 = sVpClipY1 = (f32) N64_SCREEN_H;
+    gfx_disable_scissor();
+}
+
+/** Before the menu draws over a frame. */
+void pc_gfx_overlay_begin(void) {
+    clip_full_screen();
+}
+
+/** One frame of the game's list, drawn and shown: the menu over it if open. */
+static void draw_task(void *dlBegin, void *dlEnd) {
     sGfxFrameCount++;
 
     gfx_frame_begin();
@@ -1568,13 +1585,24 @@ void pc_gfx_task_submit(void *dlBegin, void *dlEnd) {
 
     // The list sets its own scissor and viewport before it draws anything
     // (src/rcp_dkr.c), but don't inherit last frame's rects until it does.
-    sScisX0 = sVpClipX0 = 0.0f;
-    sScisY0 = sVpClipY0 = 0.0f;
-    sScisX1 = sVpClipX1 = (f32) N64_SCREEN_W;
-    sScisY1 = sVpClipY1 = (f32) N64_SCREEN_H;
-    gfx_disable_scissor();
+    clip_full_screen();
 
     run_dl((const Gfx *) dlBegin, (const Gfx *) dlEnd - (const Gfx *) dlBegin, 0);
+    dkr_menu_draw();
 
     gfx_frame_end();
+}
+
+/**
+ * The RSP task: one frame's display list, from src/rcp_dkr.c. Drawn and
+ * presented before this returns, so the task completes at once.
+ *
+ * While the settings menu is open, the game waits here: the same list is drawn
+ * again every video frame with the menu over it. Nothing in it changes -- the
+ * game built it and has not run since -- so the frozen frame is exact.
+ */
+void pc_gfx_task_submit(void *dlBegin, void *dlEnd) {
+    do {
+        draw_task(dlBegin, dlEnd);
+    } while (dkr_menu_update());
 }

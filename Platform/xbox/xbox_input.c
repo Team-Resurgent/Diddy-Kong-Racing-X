@@ -15,6 +15,7 @@
  *   Black ................ C-down  course directions, the multiplayer HUD
  *   White ................ C-right the speedometer
  *   Right stick .......... the C buttons
+ *   Right stick click .... the port's settings menu (dkr_menu.c)
  *   Back ................. L
  *   Start ................ Start
  *
@@ -22,12 +23,14 @@
  *
  * Rumble: the game drives a rumble pak's motor on and off, pulsed at the frame
  * rate for the gentler effects. The pad's motors run at the share of recent
- * frames the motor was on: half the frames, half speed. */
+ * frames the motor was on: half the frames, half speed, scaled by the settings
+ * menu's strength. */
 #include "xbox_xtl.h"
 
 #include <string.h>
 
 #include "dkr_host.h"
+#include "dkr_settings.h"
 #include "xbox_port.h"
 
 #define PADS 4
@@ -161,6 +164,8 @@ static void read_pad(Pad *p)
         b |= HOST_BTN_L;
     if (g->wButtons & XINPUT_GAMEPAD_START)
         b |= HOST_BTN_START;
+    if (g->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB)
+        b |= HOST_BTN_MENU; /* the settings menu (dkr_menu.c), not the game's */
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_UP)
         b |= HOST_BTN_UP;
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
@@ -228,6 +233,8 @@ static Pad *pad_of(int port)
  * in flight per pad; the latest level goes when it is done. */
 static void rumble_send(Pad *p)
 {
+    /* the settings menu's strength, in percent: high, medium, low, off */
+    static const int kStrength[] = { 100, 60, 30, 0 };
     int level;
 
     if (p->h == NULL)
@@ -238,8 +245,9 @@ static void rumble_send(Pad *p)
             return;
         p->busy = 0;
     }
+    level = p->level * kStrength[dkr_setting(DKR_SET_RUMBLE)] / 100;
     /* in steps, and off once it has all but died away */
-    level = (p->level < RUMBLE_STEP / 2) ? 0 : ((p->level + RUMBLE_STEP / 2) / RUMBLE_STEP) * RUMBLE_STEP;
+    level = (level < RUMBLE_STEP / 2) ? 0 : ((level + RUMBLE_STEP / 2) / RUMBLE_STEP) * RUMBLE_STEP;
     if (level > RUMBLE_FULL)
         level = RUMBLE_FULL;
     if (level == p->sent)

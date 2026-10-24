@@ -275,7 +275,8 @@ void osContGetReadData(PCContPad *pads) {
     host_pads_read(host);
     pattern = connected_pattern(host);
     for (i = 0; i < HOST_PADS; i++) {
-        pads[i].button = host[i].connected ? host[i].buttons : 0;
+        // the settings menu's button is the port's, not the game's
+        pads[i].button = host[i].connected ? (host[i].buttons & ~HOST_BTN_MENU) : 0;
         pads[i].stick_x = host[i].connected ? host[i].stickX : 0;
         pads[i].stick_y = host[i].connected ? host[i].stickY : 0;
         pads[i].error = ((pattern >> i) & 1) ? 0 : PC_CONT_NO_RESPONSE;

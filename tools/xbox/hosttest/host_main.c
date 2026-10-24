@@ -25,6 +25,7 @@
 #include <time.h>
 
 #include "dkr_host.h"
+#include "dkr_settings.h"
 
 #define MAX_EVENTS 4096
 #define MAX_SHOTS 256
@@ -155,6 +156,30 @@ void host_cpak_changed(int port)
 {
     if (port >= 0 && port < HOST_PADS)
         sCPakDirty[port] = 1;
+}
+
+/* the port's settings: <eeprom>.settings beside the EEPROM */
+static int sSettingsDirty;
+
+int host_settings_load(uint8_t *buf, int size)
+{
+    char path[1024];
+    FILE *f;
+    int ok;
+
+    if (sEeprom == NULL)
+        return 0;
+    snprintf(path, sizeof(path), "%s.settings", sEeprom);
+    if ((f = fopen(path, "rb")) == NULL)
+        return 0;
+    ok = fread(buf, 1, size, f) == (size_t)size;
+    fclose(f);
+    return ok;
+}
+
+void host_settings_changed(void)
+{
+    sSettingsDirty = 1;
 }
 
 /* The audio manager runs on this thread (host_frame_done, as on the Xbox):
@@ -432,6 +457,19 @@ static void finish(void)
             printf("HOST: Controller Pak %d written to %s\n", port + 1, path);
         }
     }
+    if (sSettingsDirty && sEeprom != NULL)
+    {
+        char path[1024];
+        FILE *f;
+
+        snprintf(path, sizeof(path), "%s.settings", sEeprom);
+        if ((f = fopen(path, "wb")) != NULL)
+        {
+            fwrite(dkr_settings_image(), 1, dkr_settings_size(), f);
+            fclose(f);
+            printf("HOST: settings written to %s\n", path);
+        }
+    }
     if (sWav != NULL)
     {
         wav_header(sWav, sWavBytes);
@@ -556,6 +594,7 @@ static uint16_t parse_buttons(const char *s)
             case 'D': b |= HOST_BTN_CDOWN; break;
             case 'W': b |= HOST_BTN_CLEFT; break;
             case 'E': b |= HOST_BTN_CRIGHT; break;
+            case 'M': b |= HOST_BTN_MENU; break; /* the settings menu (the right stick's click) */
             default: break;
         }
     }

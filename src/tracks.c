@@ -26,6 +26,9 @@
 #include "waves.h"
 #include "weather.h"
 #include "pc_swap.h"
+#ifdef TARGET_XBOX
+#include "dkr_settings.h"
+#endif
 #include "../dreamcast/prof.h"
 #ifdef TARGET_DC
 #include "../dreamcast/scrawl.h"
@@ -379,6 +382,10 @@ static void camera_wall_keep_out(void) {
     f32 t;
 
     sWallCamera = NULL;
+    // the settings menu's "original": the camera goes where the game puts it
+    if (dkr_setting(DKR_SET_CAMERA_WALLS) == DKR_CAMERA_ORIGINAL) {
+        return;
+    }
     racerObjects = get_racer_objects(&numRacers);
     if (numRacers == 0 || check_if_showing_cutscene_camera()) {
         return;
