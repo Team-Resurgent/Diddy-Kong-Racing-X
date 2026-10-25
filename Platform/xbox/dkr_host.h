@@ -77,6 +77,9 @@ void host_settings_changed(void);
 void host_audio_lock(void);
 void host_audio_unlock(void);
 int host_audio_lock_held(void); // by the calling thread
+// Stereo frames the platform's output has queued to play, beyond dkr_audio.c's
+// ring (what dkr_audio_fill counts with the ring).
+int host_audio_queued(void);
 
 // --- the shared layer provides -------------------------------------------------
 

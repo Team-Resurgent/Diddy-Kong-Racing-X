@@ -335,6 +335,10 @@ void transition_render(Gfx **dList, Mtx **mtx, Vertex **vtx) {
         }
         mtx_ortho(dList, mtx);
         set_ortho_matrix_height(1.0f);
+#ifdef TARGET_XBOX
+        // widescreen: a wipe hides the whole display and keeps its shape
+        gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_COVER);
+#endif
         switch (gCurFadeTransition) {
             case FADE_FULLSCREEN:
                 transition_render_fullscreen(dList, mtx, vtx);
@@ -358,6 +362,9 @@ void transition_render(Gfx **dList, Mtx **mtx, Vertex **vtx) {
                 transition_render_blank(dList, mtx, vtx);
                 break;
         }
+#ifdef TARGET_XBOX
+        gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
 
         viewport_main(dList, mtx);
     }

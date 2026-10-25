@@ -65,6 +65,9 @@ static LPDIRECT3D8 sD3D;
 static LPDIRECT3DDEVICE8 sDev;
 static int sDispW, sDispH, sRefresh = 60;
 static float sScaleX, sScaleY, sOffX, sOffY;
+/* widescreen: the display is 16:9, and how draws lie on it (dkr_gfx.h) */
+static int sDisplayWide;
+static int sWide = GFX_WIDE_OFF;
 
 static XbTex sTex[MAX_TEX];
 static int sFreeTex[MAX_TEX], sFreeCount;
@@ -140,6 +143,9 @@ int xb_gfx_init(void)
     }
     if (FAILED(hr))
         return -1;
+
+    /* 720p is 16:9, and so is 480 lines sent anamorphic */
+    sDisplayWide = want720 || wide480;
 
     /* the 4:3 picture in its place */
     sScaleY = (float)sDispH / 240.0f;
@@ -498,15 +504,60 @@ void gfx_set_alpha_test(float ref)
  * draws nothing there; handed to the NV2A as an empty rectangle, it hung the
  * console. So an empty one draws nothing here, and is never sent. */
 static int sScissorEmpty;
+static int sScissorOn;
+static float sScissor[4]; /* in N64 pixels: mapped afresh when the widescreen mode changes */
 
-void gfx_set_scissor(float x0, float y0, float x1, float y1)
+/* where N64 x lands on the display: the 4:3 picture in the middle, or, for
+ * the widescreen 3D scene and the covering fades, the whole display's width */
+static float x_scale(void)
+{
+    return (sWide == GFX_WIDE_3D || sWide == GFX_WIDE_COVER) ? (float)sDispW / 320.0f : sScaleX;
+}
+
+static float x_offset(void)
+{
+    return (sWide == GFX_WIDE_3D || sWide == GFX_WIDE_COVER) ? -0.5f : sOffX;
+}
+
+/* and N64 y: the covering fades grow as much as x does, about the middle */
+static float y_scale(void)
+{
+    return sWide == GFX_WIDE_COVER ? sScaleY * x_scale() / sScaleX : sScaleY;
+}
+
+static float y_offset(void)
+{
+    return sWide == GFX_WIDE_COVER ? sOffY + 120.0f * (sScaleY - y_scale()) : sOffY;
+}
+
+static void apply_scissor(void)
 {
     D3DRECT r;
 
-    r.x1 = (LONG)(x0 * sScaleX + sOffX + 0.5f);
-    r.y1 = (LONG)(y0 * sScaleY + sOffY + 0.5f);
-    r.x2 = (LONG)(x1 * sScaleX + sOffX + 0.5f);
-    r.y2 = (LONG)(y1 * sScaleY + sOffY + 0.5f);
+    r.x1 = (LONG)(sScissor[0] * x_scale() + x_offset() + 0.5f);
+    r.y1 = (LONG)(sScissor[1] * y_scale() + y_offset() + 0.5f);
+    r.x2 = (LONG)(sScissor[2] * x_scale() + x_offset() + 0.5f);
+    r.y2 = (LONG)(sScissor[3] * y_scale() + y_offset() + 0.5f);
+    if (sWide == GFX_WIDE_2D)
+    {
+        /* the N64 screen's edges are the display's: full-screen 2D, widened,
+         * is not cut back to 4:3 (a scissor past an edge, dkr_dl.c's view
+         * running on, maps as it is) */
+        if (sScissor[0] > -0.5f && sScissor[0] <= 0.0f)
+            r.x1 = 0;
+        if (sScissor[2] >= 320.0f && sScissor[2] < 320.5f)
+            r.x2 = sDispW;
+    }
+    else if (sWide == GFX_WIDE_OFF)
+    {
+        /* the 4:3 picture: nothing past its edges */
+        LONG left = (LONG)(sOffX + 0.5f), right = (LONG)(320.0f * sScaleX + sOffX + 0.5f);
+
+        if (r.x1 < left)
+            r.x1 = left;
+        if (r.x2 > right)
+            r.x2 = right;
+    }
     if (r.x1 < 0)
         r.x1 = 0;
     if (r.y1 < 0)
@@ -518,6 +569,32 @@ void gfx_set_scissor(float x0, float y0, float x1, float y1)
     sScissorEmpty = r.x2 <= r.x1 || r.y2 <= r.y1;
     if (!sScissorEmpty)
         IDirect3DDevice8_SetScissors(sDev, 1, FALSE, &r);
+}
+
+void gfx_set_scissor(float x0, float y0, float x1, float y1)
+{
+    sScissor[0] = x0;
+    sScissor[1] = y0;
+    sScissor[2] = x1;
+    sScissor[3] = y1;
+    sScissorOn = 1;
+    apply_scissor();
+}
+
+int gfx_display_wide(void)
+{
+    return sDisplayWide;
+}
+
+void gfx_set_wide(int mode)
+{
+    if (!sDisplayWide)
+        mode = GFX_WIDE_OFF;
+    if (mode == sWide)
+        return;
+    sWide = mode;
+    if (sScissorOn)
+        apply_scissor();
 }
 
 void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top)
@@ -533,6 +610,7 @@ void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top)
 void gfx_disable_scissor(void)
 {
     sScissorEmpty = 0;
+    sScissorOn = 0;
     IDirect3DDevice8_SetScissors(sDev, 0, FALSE, NULL);
 }
 
@@ -546,6 +624,8 @@ static D3DCOLOR argb(const GfxTriVert *v)
 void gfx_draw_tris(const GfxTriVert *verts, int count)
 {
     float su = 1.0f, sv = 1.0f;
+    float sx = x_scale(), ox = x_offset();
+    float sy = y_scale(), oy = y_offset();
     int done = 0;
 
     if (sDev == NULL || count < 3 || sScissorEmpty)
@@ -579,8 +659,8 @@ void gfx_draw_tris(const GfxTriVert *verts, int count)
                 fog = 0.0f;
             if (fog > 1.0f)
                 fog = 1.0f;
-            d->x = s->x * sScaleX + sOffX;
-            d->y = s->y * sScaleY + sOffY;
+            d->x = s->x * sx + ox;
+            d->y = s->y * sy + oy;
             d->z = z;
             d->rhw = rhw;
             d->diffuse = argb(s);
@@ -603,6 +683,7 @@ void gfx_frame_begin(void)
     /* a clear honours the scissor: lift it first */
     IDirect3DDevice8_SetScissors(sDev, 0, FALSE, NULL);
     sScissorEmpty = 0;
+    sScissorOn = 0;
     IDirect3DDevice8_SetRenderState(sDev, D3DRS_ZWRITEENABLE, TRUE);
     sDepthWrite = 1;
     xb_at_game = XB_AT_DRAW;

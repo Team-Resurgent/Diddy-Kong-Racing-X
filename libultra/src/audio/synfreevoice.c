@@ -33,6 +33,15 @@ void alSynFreeVoice(ALSynth *drvr, ALVoice *voice)
 
         if (voice->pvoice->offset) { /* if voice was stolen */
             update = (ALFreeParam *)__allocParam();
+#ifdef TARGET_PC
+            /* no update left: free it now, rather than lose the voice for good */
+            if (update == 0) {
+                voice->pvoice->offset = 0;
+                _freePVoice(drvr, voice->pvoice);
+                voice->pvoice = 0;
+                return;
+            }
+#endif
             ALFailIf(update == 0, ERR_ALSYN_NO_UPDATE);
 
             /*

@@ -10,7 +10,11 @@
 
 #define MAX_UPDATES             32
 #define MAX_EVENTS              32
+#ifdef TARGET_PC
+#define AUDIO_HEAP_SIZE         (0x29D88 + 0x3000) /* src/audio.c: 288 more synthesizer updates */
+#else
 #define AUDIO_HEAP_SIZE         0x29D88
+#endif
 #define AUDBUF_SIZE             0xA000  /* Audio command buffer size */
 
 #define MAX_VOICES              22

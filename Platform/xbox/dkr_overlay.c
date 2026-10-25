@@ -100,6 +100,7 @@ static unsigned mix(unsigned a, unsigned b, float t) {
 static void draw_state(unsigned texture, int point) {
     static const unsigned char kNoFog[4] = { 0, 0, 0, 255 };
 
+    gfx_set_wide(GFX_WIDE_OFF); // the menu is laid out on the 4:3 picture
     gfx_set_texenv_modulate();
     gfx_set_depth_test(0);
     gfx_set_depth_write(0);
@@ -115,6 +116,11 @@ void ovl_rect(float x0, float y0, float x1, float y1, unsigned top, unsigned bot
     float l, t, r, b;
 
     display_map();
+    // across the whole layout: across the whole display, a 16:9 one too
+    if (x0 <= 0.0f && x1 >= OVL_W && gfx_display_wide()) {
+        x0 = GFX_WIDE_X0 * OVL_PER_N64;
+        x1 = GFX_WIDE_X1 * OVL_PER_N64;
+    }
     // on whole display pixels, for clean edges
     l = floorf(disp_x(x0) + 0.5f);
     r = floorf(disp_x(x1) + 0.5f);

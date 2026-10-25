@@ -507,9 +507,9 @@ void func_8000B38C(Vertex *vertices, Triangle *triangles, ObjectTransform *trans
     tri = (s32 *) triangles;
     for (i = 0; i < 8; i++) {
         *tri++ = DKR_TRIANGLE(BACKFACE_CULL, 0, i + 1, ((i + 1) & 7) + 1);
-        *tri++ = ((width & 0xFFFF) << 16) | (height & 0xFFFF);
-        *tri++ = sp80[i];
-        *tri++ = sp80[(i + 1) & 7];
+        *tri++ = DKR_TEXCOORDS_WORD(((width & 0xFFFF) << 16) | (height & 0xFFFF));
+        *tri++ = DKR_TEXCOORDS_WORD(sp80[i]);
+        *tri++ = DKR_TEXCOORDS_WORD(sp80[(i + 1) & 7]);
     }
 }
 

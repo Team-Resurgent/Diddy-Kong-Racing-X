@@ -102,13 +102,21 @@ void dkr_audio_go(void) {
     }
 }
 
+// Tick the manager until `frames` of sound are made ahead: in the ring and in
+// the platform's output together. Counting the ring alone fell behind whenever
+// the game showed fewer than about 31 frames a second (the 30 FPS setting, or a
+// heavy stretch of a level): a tick makes 720 frames, which always lifted the
+// ring past its mark, so it ran once a frame at most -- 21600 a second against
+// the 22050 played -- and the output's queue ran down and stayed down, the
+// sound breaking up about once a second for as long as the frame rate did.
+// Counting the output's queue too, a frame that finds it run down ticks again.
 void dkr_audio_fill(int frames) {
     int ticks = 0;
 
     if (!sLive || frameSize == 0) {
         return;
     }
-    while (ring_frames() < (uint32_t) frames && ticks < MAX_TICKS) {
+    while ((int) ring_frames() + host_audio_queued() < frames && ticks < MAX_TICKS) {
         am_audio_frame_pc();
         ticks++;
     }

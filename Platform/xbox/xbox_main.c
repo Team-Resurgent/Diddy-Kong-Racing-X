@@ -36,10 +36,10 @@
 #define DKR_LOGIC_RATE 1 /* fields a frame: 1 for 60 frames a second */
 #endif
 #define MAX_UPDATE_RATE 6 /* more than this is a stall, not game time */
-/* stereo frames of sound kept made ahead of the output: a packet
- * (xbox_audio.c), on top of the stream's own queue, which carries the sound
- * through a long frame */
-#define AUDIO_AHEAD 512
+/* stereo frames of sound kept made ahead of what is playing: the stream's
+ * queue of five packets (xbox_audio.c), which carries the sound through a long
+ * frame, and one more waiting in the ring */
+#define AUDIO_AHEAD (6 * 512)
 
 void dkr_boot(void);
 

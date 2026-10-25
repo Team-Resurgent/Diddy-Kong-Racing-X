@@ -295,7 +295,17 @@ void audio_init(OSSched *sc) {
 
     synth_config.maxVVoices = 40;
     synth_config.maxPVoices = 40;
+#ifdef TARGET_PC
+    // Stops, frees and volume changes wait in this pool until the synthesizer
+    // reaches them. A tick here can carry two logic steps' worth (it runs when
+    // the output needs sound, not on the logic's beat), and Golden Balloon
+    // measured the N64's 96 running dry that way: the change is dropped, and a
+    // dropped stop is a loop that never ends, a dropped free a voice lost for
+    // good. Its 384 (the heap grows to hold them, audiomgr.h).
+    synth_config.maxUpdates = 384;
+#else
     synth_config.maxUpdates = 96;
+#endif
     synth_config.dmaproc = NULL;
 #ifdef AUDIO_NO_REVERB
     

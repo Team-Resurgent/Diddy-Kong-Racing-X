@@ -2553,6 +2553,16 @@ void func_8002A31C(void) {
         oy3 = y;
         oz3 = z;
         mtxf_transform_point(*cameraMatrix, x, y, z, &ox3, &oy3, &oz3);
+#ifdef TARGET_XBOX
+        // Widescreen sees a third more to each side: open the side planes to
+        // match, so segments at the edges of a 16:9 view are not dropped.
+        if (i != 0 && dkr_widescreen_world()) {
+            x = D_800DC8AC[i][1].x * (4.0f / 3.0f);
+            mtxf_transform_point(*cameraMatrix, x, D_800DC8AC[i][1].y, D_800DC8AC[i][1].z, &ox2, &oy2, &oz2);
+            x = D_800DC8AC[i][2].x * (4.0f / 3.0f);
+            mtxf_transform_point(*cameraMatrix, x, D_800DC8AC[i][2].y, D_800DC8AC[i][2].z, &ox3, &oy3, &oz3);
+        }
+#endif
         x = ((oz2 - oz3) * oy1) + (oy2 * (oz3 - oz1)) + (oy3 * (oz1 - oz2));
         y = ((ox2 - ox3) * oz1) + (oz2 * (ox3 - ox1)) + (oz3 * (ox1 - ox2));
         z = ((oy2 - oy3) * ox1) + (ox2 * (oy3 - oy1)) + (ox3 * (oy1 - oy2));

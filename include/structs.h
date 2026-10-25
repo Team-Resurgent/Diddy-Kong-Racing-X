@@ -595,7 +595,21 @@ typedef struct TexCoords {
 #define BACKFACE_DRAW 0x40
 #define TRI_FLAG_80 0x80
 
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+/*
+ * A little-endian host (the PC and Xbox ports) keeps the bytes of a word the
+ * other way round from the N64. The game packs a Triangle's flags and indices,
+ * and a TexCoords' u and v, into whole words; packed as on the N64 they land in
+ * each other's fields here: the character flags on the arenas' walls lost a
+ * triangle (an index read as 64) and had their texture turned on its side.
+ */
+#define DKR_TRIANGLE(flags, ind0, ind1, ind2) (((ind2) << 24) | ((ind1) << 16) | ((ind0) << 8) | ((flags) << 0))
+// A TexCoords word the game packed as the N64 holds it (u in the top half), as this host must.
+#define DKR_TEXCOORDS_WORD(word) ((((u32) (word)) >> 16) | (((u32) (word)) << 16))
+#else
 #define DKR_TRIANGLE(flags, ind0, ind1, ind2) (((flags) << 24) | ((ind0) << 16) | ((ind1) << 8) | ((ind2) << 0))
+#define DKR_TEXCOORDS_WORD(word) (word)
+#endif
 
 /* Size: 0x10 bytes */
 typedef struct Triangle {

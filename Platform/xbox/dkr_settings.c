@@ -4,11 +4,12 @@
 
 #include <string.h>
 
+#include "dkr_gfx.h"
 #include "dkr_host.h"
 #include "dkr_settings.h"
 
 #define SETTINGS_MAGIC "DKRS"
-#define SETTINGS_VERSION 1
+#define SETTINGS_VERSION 2 // 2: widescreen, first of all
 #define SETTINGS_SLOTS 32 // room for settings to come, in the same file
 
 typedef struct {
@@ -26,6 +27,7 @@ typedef struct {
 } SettingInfo;
 
 static const SettingInfo sInfo[DKR_SET_COUNT] = {
+    [DKR_SET_WIDESCREEN] = { "Widescreen", 2, { "Off", "On" } },
     [DKR_SET_CAMERA_WALLS] = { "Camera at walls", 2, { "Keep out", "Original" } },
     [DKR_SET_PLANE_STICK] = { "Plane up/down", 2, { "Normal", "Inverted" } },
     [DKR_SET_RUMBLE] = { "Rumble", 4, { "High", "Medium", "Low", "Off" } },
@@ -44,7 +46,13 @@ static void settings_init(void) {
     }
     sReady = 1;
     if (!host_settings_load((uint8_t *) &sImage, sizeof(sImage)) ||
-        memcmp(sImage.magic, SETTINGS_MAGIC, sizeof(sImage.magic)) != 0 || sImage.version != SETTINGS_VERSION) {
+        memcmp(sImage.magic, SETTINGS_MAGIC, sizeof(sImage.magic)) != 0) {
+        memset(&sImage, 0, sizeof(sImage));
+    } else if (sImage.version == 1) {
+        // version 1 had no widescreen: its settings move one on, widescreen off
+        memmove(&sImage.values[1], &sImage.values[0], SETTINGS_SLOTS - 1);
+        sImage.values[0] = DKR_WIDESCREEN_OFF;
+    } else if (sImage.version != SETTINGS_VERSION) {
         memset(&sImage, 0, sizeof(sImage));
     }
     memcpy(sImage.magic, SETTINGS_MAGIC, sizeof(sImage.magic));
@@ -70,6 +78,20 @@ void dkr_setting_set(int id, int value) {
     }
     sImage.values[id] = (unsigned char) value;
     host_settings_changed();
+}
+
+int dkr_widescreen(void) {
+    return dkr_setting(DKR_SET_WIDESCREEN) == DKR_WIDESCREEN_ON && gfx_display_wide();
+}
+
+static int sFramed;
+
+void dkr_widescreen_framed(int framed) {
+    sFramed = framed;
+}
+
+int dkr_widescreen_world(void) {
+    return dkr_widescreen() && !sFramed;
 }
 
 int dkr_setting_values(int id) {

@@ -12,6 +12,22 @@
 #include "video.h"
 #include "weather.h"
 
+#ifdef TARGET_XBOX
+#include "dkr_settings.h"
+
+/**
+ * The projection's aspect. With the settings menu's widescreen, on a 16:9
+ * display, 16:9: the same vertical view, more to each side ("Hor+"), which the
+ * display-list interpreter then lays across the whole display.
+ */
+static f32 cam_aspect(void) {
+    return dkr_widescreen_world() ? CAMERA_ASPECT * (4.0f / 3.0f) : CAMERA_ASPECT;
+}
+#define CAMERA_ASPECT_NOW cam_aspect()
+#else
+#define CAMERA_ASPECT_NOW CAMERA_ASPECT
+#endif
+
 #define CAMERA_MODEL_STACK_SIZE 5
 
 /************ .data ************/
@@ -137,6 +153,9 @@ void cam_init(void) {
     // clang-format off
     for (i = 0; i < 5; i++) { gModelMatrixF[i] = (MtxF*)&D_80120DA0[i << 4]; }
     // clang-format on
+#ifdef TARGET_XBOX
+    dkr_widescreen_framed(FALSE);
+#endif
 
     for (j = 0; j < 8; j++) {
         gActiveCameraID = j;
@@ -164,7 +183,7 @@ void cam_init(void) {
         gAntiPiracyViewport = TRUE;
     }
 
-    guPerspectiveF(gPerspectiveMatrixF, &perspNorm, CAMERA_DEFAULT_FOV, CAMERA_ASPECT, CAMERA_NEAR, CAMERA_FAR,
+    guPerspectiveF(gPerspectiveMatrixF, &perspNorm, CAMERA_DEFAULT_FOV, CAMERA_ASPECT_NOW, CAMERA_NEAR, CAMERA_FAR,
                    CAMERA_SCALE);
     mtxf_to_mtx(&gPerspectiveMatrixF, &gPerspectiveMatrix);
     gCurCamFOV = CAMERA_DEFAULT_FOV;
@@ -216,7 +235,7 @@ UNUSED f32 cam_get_fov(void) {
 void cam_set_fov(f32 camFieldOfView) {
     if (CAMERA_MIN_FOV < camFieldOfView && camFieldOfView < CAMERA_MAX_FOV && camFieldOfView != gCurCamFOV) {
         gCurCamFOV = camFieldOfView;
-        guPerspectiveF(gPerspectiveMatrixF, &perspNorm, camFieldOfView, CAMERA_ASPECT, CAMERA_NEAR, CAMERA_FAR,
+        guPerspectiveF(gPerspectiveMatrixF, &perspNorm, camFieldOfView, CAMERA_ASPECT_NOW, CAMERA_NEAR, CAMERA_FAR,
                        CAMERA_SCALE);
         mtxf_to_mtx(&gPerspectiveMatrixF, &gPerspectiveMatrix);
     }
@@ -226,7 +245,7 @@ void cam_set_fov(f32 camFieldOfView) {
  * Unused function that recalculates the perspective matrix.
  */
 UNUSED void cam_reset_fov(void) {
-    guPerspectiveF(gPerspectiveMatrixF, &perspNorm, CAMERA_DEFAULT_FOV, CAMERA_ASPECT, CAMERA_NEAR, CAMERA_FAR,
+    guPerspectiveF(gPerspectiveMatrixF, &perspNorm, CAMERA_DEFAULT_FOV, CAMERA_ASPECT_NOW, CAMERA_NEAR, CAMERA_FAR,
                    CAMERA_SCALE);
     mtxf_to_mtx(&gPerspectiveMatrixF, &gPerspectiveMatrix);
 }
@@ -887,6 +906,21 @@ void viewport_scissor(Gfx **dList) {
 void func_80067D3C(Gfx **dList, UNUSED Mtx **mtx) {
     s32 originalCamID;
 
+#ifdef TARGET_XBOX
+    {
+        // widescreen switched on or off since the projection was made: made
+        // again, at the field of view it had
+        static s32 sProjectionWide = -1;
+        s32 wide = dkr_widescreen_world();
+
+        if (wide != sProjectionWide) {
+            sProjectionWide = wide;
+            guPerspectiveF(gPerspectiveMatrixF, &perspNorm, gCurCamFOV, CAMERA_ASPECT_NOW, CAMERA_NEAR, CAMERA_FAR,
+                           CAMERA_SCALE);
+            mtxf_to_mtx(&gPerspectiveMatrixF, &gPerspectiveMatrix);
+        }
+    }
+#endif
     gSPPerspNormalize((*dList)++, perspNorm);
 
     originalCamID = gActiveCameraID;

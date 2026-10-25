@@ -69,4 +69,27 @@ void gfx_frame_end(void);
 // (dkr_overlay.c) puts its text on whole display pixels by it.
 void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top);
 
+// Widescreen (the settings menu's, dkr_settings.h). Whether the display is
+// 16:9, and how the draws after this lie on it:
+//   GFX_WIDE_OFF  the 4:3 picture in the middle, as without widescreen
+//   GFX_WIDE_2D   the same, but a scissor reaching the N64 screen's left or
+//                 right edge reaches the display's (full-screen 2D, widened by
+//                 dkr_dl.c, is not clipped back to 4:3)
+//   GFX_WIDE_3D   the N64 screen across the whole display: the 3D scene, drawn
+//                 with a projection widened to 16:9 (src/camera.c)
+//   GFX_WIDE_COVER the 4:3 picture scaled up evenly until it covers the whole
+//                 display, its top and bottom cut off: fades and wipes, which
+//                 must hide everything and keep their shape
+#define GFX_WIDE_OFF 0
+#define GFX_WIDE_2D 1
+#define GFX_WIDE_3D 2
+#define GFX_WIDE_COVER 3
+int gfx_display_wide(void);
+void gfx_set_wide(int mode);
+
+// In GFX_WIDE_2D, the N64 x the display's edges stand at: the 4:3 picture's
+// 320 columns are the middle three quarters of a 16:9 display.
+#define GFX_WIDE_X0 (160.0f - 160.0f * 4.0f / 3.0f)
+#define GFX_WIDE_X1 (160.0f + 160.0f * 4.0f / 3.0f)
+
 #endif

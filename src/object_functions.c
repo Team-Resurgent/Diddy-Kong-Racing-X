@@ -1121,12 +1121,12 @@ void obj_loop_characterflag(Object *obj, UNUSED s32 updateRate) {
             // 0x40 = Draw backface
             flagModel->triangles[0].vertices = DKR_TRIANGLE(BACKFACE_DRAW, 0, 1, 3);
             flagModel->triangles[0].uv0.texCoords = 0;
-            flagModel->triangles[0].uv1.texCoords = temp_t4;
-            flagModel->triangles[0].uv2.texCoords = temp_t5;
+            flagModel->triangles[0].uv1.texCoords = DKR_TEXCOORDS_WORD(temp_t4);
+            flagModel->triangles[0].uv2.texCoords = DKR_TEXCOORDS_WORD(temp_t5);
             flagModel->triangles[1].vertices = DKR_TRIANGLE(BACKFACE_DRAW, 1, 2, 3);
-            flagModel->triangles[1].uv0.texCoords = temp_t4;
-            flagModel->triangles[1].uv1.texCoords = (temp_t4 | temp_t5);
-            flagModel->triangles[1].uv2.texCoords = temp_t5;
+            flagModel->triangles[1].uv0.texCoords = DKR_TEXCOORDS_WORD(temp_t4);
+            flagModel->triangles[1].uv1.texCoords = DKR_TEXCOORDS_WORD(temp_t4 | temp_t5);
+            flagModel->triangles[1].uv2.texCoords = DKR_TEXCOORDS_WORD(temp_t5);
         }
     }
 }

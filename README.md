@@ -35,7 +35,7 @@ machine.
 * 60 frames a second, with the game's own 30 Hz physics
 * Drawn at the television's resolution, not the N64's 320x240: 720p and 480p
   (progressive or interlaced) following the dashboard, the 4:3 picture with
-  black bars on a 16:9 screen
+  black bars on a 16:9 screen, or true widescreen from the settings menu
 * The N64's full sound: music, effects, every racer's engine (which the
   decomp's Linux port had left silent) and the reverb in caves and tunnels
   (which its Dreamcast port drops to save CPU)
@@ -44,9 +44,9 @@ machine.
   in it too, kept on the hard disk
 * A chase camera that would slip into a wall (in some tunnels) is drawn in
   closer to your racer instead of looking through it
-* A settings menu of the port's own, on the right stick's click: the camera
-  at walls, inverted plane controls, rumble strength, 30 or 60 FPS, sharp
-  or smooth textures
+* A settings menu of the port's own, on the right stick's click:
+  widescreen, the camera at walls, inverted plane controls, rumble
+  strength, 30 or 60 FPS, sharp or smooth textures
 * Saves (the three adventure files, best times, options) kept on the Xbox's
   hard disk (dashboard > Memory > Diddy Kong Racing X)
 * Optional: start from a 100%-completed save (`--unlock-all`, below)
@@ -153,6 +153,7 @@ kept on the hard disk (`settings.bin`, beside the save).
 
 | Setting | Choices | |
 | --- | --- | --- |
+| Widescreen | **Off**, on | on a 16:9 display (the dashboard's widescreen or 720p), the 3D fills the screen and sees more to each side, the race HUD and map move out to the edges (with three or four players, each player's HUD stays over their own view), and menus stay 4:3 in the middle with their backgrounds carried out to the edges (the HUD and fades follow [Golden Balloon](https://github.com/akratch/goldenballoon)'s layout) |
 | Camera at walls | **Keep out**, original | a chase camera that would slip into a wall is drawn in closer to your racer; *original* lets it look through |
 | Plane up/down | **Normal**, inverted | inverted: push up to climb |
 | Rumble | **High**, medium, low, off | |
@@ -191,7 +192,9 @@ python tools/xbox/hosttest/sheet.py build\shots 1500
 `race1p.txt` goes from the title to a race on Ancient Lake; `race4p.txt`
 does the same with four players. `--threaded` plays the sound from a thread
 of its own as the Xbox does; `--time` reports the game's own CPU time a
-frame.
+frame. `--wav file.wav` records the sound, `--music N` plays the audio
+options' music test N from the title screen, and `--wide` draws a 16:9
+display for the widescreen setting.
 
 ## How it is put together
 
@@ -228,6 +231,9 @@ committed is a ROM, game data, a build output, or a path on your own machine.
   (`Platform/xbox/fonts/OFL.txt`)
 * [stb_truetype](https://github.com/nothings/stb) by Sean Barrett, which
   draws it (public domain or MIT, `Platform/xbox/third_party/stb_truetype.h`)
+* [Golden Balloon](https://github.com/akratch/goldenballoon), the native PC
+  port of the same decompilation, whose widescreen this follows: the HUD's
+  anchors, the framed views kept 4:3, the fades that cover the display
 * Rare, for the game
 
 Diddy Kong Racing is a trademark of Nintendo and Rare. This project is not

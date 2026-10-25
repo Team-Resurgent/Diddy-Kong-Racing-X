@@ -23,6 +23,9 @@
 #include "thread3_main.h"
 #include "tracks.h"
 #include "types.h"
+#ifdef TARGET_XBOX
+#include "dkr_settings.h"
+#endif
 
 /************ .data ************/
 
@@ -678,6 +681,140 @@ u8 race_starting(void) {
     return gHudRaceStart;
 }
 
+#ifdef TARGET_XBOX
+/*
+ * Widescreen: the one-player HUD out at the display's edges. Each element is
+ * drawn in a draw space (include/f3ddkr.h) that moves it out by the width of a
+ * side strip towards the edge it keeps to; the interpreter does the moving, so
+ * no rectangle is cut at the N64 screen's edge. Which edge, element by element
+ * and per game mode, is Golden Balloon's table (game/src/game_ui.c,
+ * sHudWidescreenAnchor): it follows where hud_init_element() lays each group
+ * out in that mode.
+ */
+#define HUD_SPACE_INHERIT -1 // the space it is drawn in already: minimap markers, glyphs made on the stack
+// A split screen's quarter is widened about the screen's middle like the rest
+// of the 3D: its middle moves out by a third of its 80 pixels from the middle.
+// Its HUD moves with it, as a whole, so its layout stays as it was.
+#define HUD_QUARTER_SHIFT ((SCREEN_WIDTH / 4) / 3.0f)
+
+static s32 sHudSpace = G_DKR_SPACE_SAFE; // the HUD list's draw space now; SAFE: the HUD is not widened, WIDE: the
+                                         // one-player HUD, its elements at their edges
+
+static void hud_space(Gfx **dList, s32 space) {
+    if (space != HUD_SPACE_INHERIT && space != sHudSpace) {
+        gDkrSetDrawSpace((*dList)++, space);
+        sHudSpace = space;
+    }
+}
+
+/** The draw space of HUD element `element` (enum HudTypes). */
+static s32 hud_wide_space(s32 element) {
+    s32 raceType = level_type();
+    s32 timeTrial = is_in_time_trial();
+    s32 boss = !timeTrial && raceType == RACETYPE_BOSS;
+    s32 challenge = !timeTrial && !boss && (raceType & RACETYPE_CHALLENGE);
+    s32 hub = !timeTrial && !boss && !challenge && (raceType == RACETYPE_UNK1 || raceType == RACETYPE_HUBWORLD);
+
+    switch (element) {
+        case HUD_RACE_POSITION:
+        case HUD_RACE_POSITION_END:
+        case HUD_WEAPON_DISPLAY:
+        case HUD_WEAPON_QUANTITY:
+        case HUD_BALLOON_COUNT_ICON:
+        case HUD_BALLOON_COUNT_X:
+        case HUD_BALLOON_COUNT_NUMBER_1:
+        case HUD_BALLOON_COUNT_NUMBER_2:
+        case HUD_STOPWATCH:
+        case HUD_STOPWATCH_HANDS:
+        case HUD_SILVER_COIN_TALLY:
+            return G_DKR_SPACE_WIDE_LEFT;
+        case HUD_LAP_COUNT_LABEL:
+        case HUD_LAP_COUNT_CURRENT:
+        case HUD_LAP_COUNT_SEPERATOR:
+        case HUD_LAP_COUNT_TOTAL:
+        case HUD_LAP_COUNT_FLAG:
+            // time trial moves the lap counter to the top left
+            return timeTrial ? G_DKR_SPACE_WIDE_LEFT : G_DKR_SPACE_WIDE_RIGHT;
+        case HUD_BANANA_COUNT_ICON_SPIN:
+        case HUD_BANANA_COUNT_NUMBER_1:
+        case HUD_BANANA_COUNT_NUMBER_2:
+        case HUD_BANANA_COUNT_X:
+        case HUD_BANANA_COUNT_ICON_STATIC:
+        case HUD_BANANA_COUNT_SPARKLE:
+            // boss races move the bananas to the top left; the banana
+            // challenge puts them in the middle of the portraits
+            return boss ? G_DKR_SPACE_WIDE_LEFT : challenge ? G_DKR_SPACE_WIDE : G_DKR_SPACE_WIDE_RIGHT;
+        case HUD_RACE_TIME_LABEL:
+        case HUD_RACE_TIME_NUMBER:
+        case HUD_TIME_TRIAL_LAP_TEXT:
+        case HUD_TIME_TRIAL_LAP_NUMBER:
+        case HUD_SPEEDOMETRE_ARROW:
+        case HUD_SPEEDOMETRE_0:
+        case HUD_SPEEDOMETRE_30:
+        case HUD_SPEEDOMETRE_60:
+        case HUD_SPEEDOMETRE_90:
+        case HUD_SPEEDOMETRE_120:
+        case HUD_SPEEDOMETRE_150:
+        case HUD_SPEEDOMETRE_BG:
+            return G_DKR_SPACE_WIDE_RIGHT;
+        case HUD_LAP_TIME_TEXT:
+            return timeTrial ? G_DKR_SPACE_WIDE_RIGHT : G_DKR_SPACE_WIDE;
+        case HUD_TREASURE_METRE:
+        case HUD_CHALLENGE_PORTRAIT:
+        case HUD_EGG_CHALLENGE_ICON:
+        case HUD_BATTLE_BANANA_ICON:
+        case HUD_BATTLE_BANANA_X:
+        case HUD_BATTLE_BANANA_COUNT_1:
+        case HUD_BATTLE_BANANA_COUNT_2:
+            // the arenas lay these out as a strip across the middle
+            return challenge ? G_DKR_SPACE_WIDE : G_DKR_SPACE_WIDE_LEFT;
+        case HUD_TWO_PLAYER_ADV_PORTRAIT:
+            return hub ? G_DKR_SPACE_WIDE_RIGHT : G_DKR_SPACE_WIDE;
+        case HUD_MINIMAP_MARKER:
+            return HUD_SPACE_INHERIT; // drawn with the map, wherever that goes
+        default:
+            return G_DKR_SPACE_WIDE; // the middle: GO!, FINISH, wrong way, ...
+    }
+}
+
+/** Draw what follows as HUD element `element` is drawn; returns the space to go back to. */
+static s32 hud_space_as(Gfx **dList, s32 element) {
+    s32 outer = sHudSpace;
+
+    if (outer == G_DKR_SPACE_WIDE) {
+        hud_space(dList, hud_wide_space(element));
+    }
+    return outer;
+}
+
+/**
+ * Whether this frame's HUD goes out to the edges: one player, or two (each
+ * with a view the whole width of the screen, its HUD laid out as one player's
+ * is), on a widescreen world.
+ */
+static s32 hud_wide(void) {
+    return gHUDNumPlayers <= TWO_PLAYERS && dkr_widescreen_world();
+}
+
+/** The space a split screen's quarter `quarter` (0 top left .. 3 bottom right) draws its HUD in. */
+static s32 hud_quarter_space(s32 quarter) {
+    return G_DKR_SPACE_SHIFTED((quarter & 1) ? HUD_QUARTER_SHIFT : -HUD_QUARTER_SHIFT);
+}
+
+static void hud_element_render_unwide(Gfx **dList, Mtx **mtx, Vertex **vtxList, HudElement *hud);
+
+void hud_element_render(Gfx **dList, Mtx **mtx, Vertex **vtxList, HudElement *hud) {
+    s32 outer = sHudSpace;
+
+    if (outer == G_DKR_SPACE_WIDE && gCurrentHud != NULL && hud >= gCurrentHud->entry &&
+        hud < gCurrentHud->entry + HUD_ELEMENT_COUNT) {
+        hud_space(dList, hud_wide_space(hud - gCurrentHud->entry));
+    }
+    hud_element_render_unwide(dList, mtx, vtxList, hud);
+    hud_space(dList, outer);
+}
+#endif
+
 /**
  * Root function for the HUD updating and rendering for individual players.
  * The player can toggle specific overrides and settings for displays based on their current game modes.
@@ -702,6 +839,13 @@ void hud_render_player(Gfx **dList, Mtx **mtx, Vertex **vertexList, Object *obj,
             gHudMtx = *mtx;
             gHudVtx = *vertexList;
             D_80127180 = 0;
+#ifdef TARGET_XBOX
+            if (hud_wide()) {
+                hud_space(&gHudDL, G_DKR_SPACE_WIDE);
+            } else if (gHUDNumPlayers >= THREE_PLAYERS && dkr_widescreen_world()) {
+                hud_space(&gHudDL, hud_quarter_space(gHudCurrentViewport));
+            }
+#endif
             if (gMinimapFade) {
                 gMinimapOpacity += updateRate;
                 if (gMinimapOpacity > gMinimapOpacityTarget) {
@@ -870,6 +1014,9 @@ void hud_render_player(Gfx **dList, Mtx **mtx, Vertex **vertexList, Object *obj,
                     gHudSprites[D_80127180].texture = NULL;
                     texrect_draw(&gHudDL, gHudSprites, 0, 0, 255, 255, 255, 255);
                 }
+#ifdef TARGET_XBOX
+                hud_space(&gHudDL, G_DKR_SPACE_SAFE);
+#endif
                 *dList = gHudDL;
                 *mtx = gHudMtx;
                 *vertexList = gHudVtx;
@@ -1597,7 +1744,16 @@ void hud_main_time_trial(s32 arg0, Object *playerRacerObj, s32 updateRate) {
         for (i = 0; i < curRacer->countLap && i < gHudLevelHeader->laps; i++) {
             get_timestamp_from_frames(curRacer->lap_times[i], &spB4, &spB0, &spAC);
             gHudColour = gHudLapColours[i];
+#ifdef TARGET_XBOX
+            {
+                s32 outer = hud_space_as(&gHudDL, HUD_LAP_TIME_TEXT);
+
+                hud_timer_render(gCurrentHud->entry[HUD_LAP_TIME_TEXT].pos.x, spB8, spB4, spB0, spAC, 1);
+                hud_space(&gHudDL, outer);
+            }
+#else
             hud_timer_render(gCurrentHud->entry[HUD_LAP_TIME_TEXT].pos.x, spB8, spB4, spB0, spAC, 1);
+#endif
             gHudColour = COLOUR_RGBA32(255, 255, 255, 254);
             spB8 += 12;
             gDPSetPrimColor(gHudDL++, 0, 0, 255, 255, 255, 255);
@@ -3215,8 +3371,14 @@ void hud_race_time(Object_Racer *racer, s32 updateRate) {
             }
 
             if (gNumActivePlayers == 1) {
+#ifdef TARGET_XBOX
+                s32 outer = hud_space_as(&gHudDL, HUD_RACE_TIME_NUMBER);
+#endif
                 hud_timer_render(gCurrentHud->entry[HUD_RACE_TIME_NUMBER].pos.x,
                                  gCurrentHud->entry[HUD_RACE_TIME_NUMBER].pos.y, minutes, seconds, hundredths, FALSE);
+#ifdef TARGET_XBOX
+                hud_space(&gHudDL, outer);
+#endif
             } else {
                 hud_timer_render(gCurrentHud->entry[HUD_RACE_TIME_NUMBER].pos.x,
                                  gCurrentHud->entry[HUD_RACE_TIME_NUMBER].pos.y, minutes, seconds, hundredths, TRUE);
@@ -3644,6 +3806,16 @@ void hud_render_general(Gfx **dList, Mtx **mtx, Vertex **vtx, s32 updateRate) {
     if (osTvType == OS_TV_TYPE_PAL) {
         gMinimapScreenY *= 1.2;
     }
+#ifdef TARGET_XBOX
+    // widescreen: the map, and its markers with it, out at the right edge
+    if (hud_wide()) {
+        hud_space(&gHudDL, G_DKR_SPACE_WIDE_RIGHT);
+    } else if (gHUDNumPlayers == THREE_PLAYERS && dkr_widescreen_world() && level_type() != RACETYPE_CHALLENGE_EGGS &&
+               level_type() != RACETYPE_CHALLENGE_BATTLE && level_type() != RACETYPE_CHALLENGE_BANANAS) {
+        // three players: the map has the empty bottom right quarter
+        hud_space(&gHudDL, hud_quarter_space(3));
+    }
+#endif
     sprite_opaque(FALSE);
     hudElem.pos.x = gMinimapScreenX + gHudOffsetX + gHudBounceX;
     hudElem.pos.y = gMinimapScreenY;
@@ -3766,6 +3938,9 @@ void hud_render_general(Gfx **dList, Mtx **mtx, Vertex **vtx, s32 updateRate) {
     gDPPipeSync(gHudDL++);
     cam_set_sprite_anim_mode(SPRITE_ANIM_NORMALIZED);
     sprite_opaque(TRUE);
+#ifdef TARGET_XBOX
+    hud_space(&gHudDL, G_DKR_SPACE_SAFE);
+#endif
     *dList = gHudDL;
     *mtx = gHudMtx;
     *vtx = gHudVtx;
@@ -3813,7 +3988,11 @@ void minimap_marker_pos(f32 x, f32 z, f32 angleSin, f32 angleCos, f32 modelAspec
  * Since hud elements can be all sorts of things, the function checks what asset type it is, before
  * deciding to draw a texture rectangle, ortho tris, or a 3D model entirely.
  */
+#ifdef TARGET_XBOX
+static void hud_element_render_unwide(Gfx **dList, Mtx **mtx, Vertex **vtxList, HudElement *hud) {
+#else
 void hud_element_render(Gfx **dList, Mtx **mtx, Vertex **vtxList, HudElement *hud) {
+#endif
     ModelInstance *model;
     TextureHeader *textureHeader2;
     TextureHeader *textureHeader;
@@ -3931,7 +4110,12 @@ void hud_element_render(Gfx **dList, Mtx **mtx, Vertex **vtxList, HudElement *hu
             textureHeader2 = gAssetHudElements->entry[spriteID];
             textureHeader2 =
                 (TextureHeader *) (((u8 *) textureHeader2) + hud->spriteOffset * textureHeader2->textureSize);
+#ifdef TARGET_XBOX
+            // (a widened HUD draws each at once, in its own element's space)
+            if (gHudColour == COLOUR_RGBA32(255, 255, 255, 254) && sHudSpace == G_DKR_SPACE_SAFE) {
+#else
             if (gHudColour == COLOUR_RGBA32(255, 255, 255, 254)) {
+#endif
                 gHudSprites[D_80127180].texture = textureHeader2;
                 gHudSprites[D_80127180].xOffset = hud->pos.x;
                 gHudSprites[D_80127180].yOffset = hud->pos.y;

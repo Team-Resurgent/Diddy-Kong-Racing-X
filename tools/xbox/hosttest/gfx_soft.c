@@ -14,8 +14,11 @@
 #include "dkr_gfx.h"
 
 #define SCALE 2
-#define FB_W (320 * SCALE)
 #define FB_H (240 * SCALE)
+/* 640 wide, or 854 for a 16:9 display (host_main.c --wide: widescreen) */
+#define FB_MAX_W 854
+#define FB_W sFbW
+static int sFbW = 320 * SCALE;
 
 #define MAX_TEX 4096
 
@@ -25,8 +28,8 @@ typedef struct {
     unsigned char *rgba;
 } SoftTex;
 
-static unsigned int sFb[FB_W * FB_H]; /* 0xAABBGGRR */
-static float sDepth[FB_W * FB_H];
+static unsigned int sFb[FB_MAX_W * FB_H]; /* 0xAABBGGRR */
+static float sDepth[FB_MAX_W * FB_H];
 static SoftTex sTex[MAX_TEX];
 static int sBound;
 static int sPoint;
@@ -36,7 +39,35 @@ static int sBlendEnv;
 static unsigned char sEnvColor[4];
 static int sDepthTest = 1, sDepthWrite = 1, sDepthOffset;
 static float sAlphaRef;
-static int sScX0, sScY0, sScX1 = FB_W, sScY1 = FB_H;
+static int sScX0, sScY0, sScX1 = 320 * SCALE, sScY1 = FB_H;
+static int sWide;          /* GFX_WIDE_*, as gfx_xbox.c */
+static int sScissorOn;
+static float sScissor[4]; /* in N64 pixels */
+
+/* the 4:3 picture's left edge on the framebuffer */
+static int pic_left(void)
+{
+    return (sFbW - 320 * SCALE) / 2;
+}
+
+/* N64 x on the framebuffer: the 4:3 picture, or the whole width for the
+ * widescreen 3D scene and the covering fades */
+static float map_x(float x)
+{
+    return (sWide == GFX_WIDE_3D || sWide == GFX_WIDE_COVER) ? x * (float)sFbW / 320.0f : x * SCALE + pic_left();
+}
+
+/* N64 y: the covering fades are scaled as much as x, about the middle */
+static float map_y(float y)
+{
+    return sWide == GFX_WIDE_COVER ? (y - 120.0f) * (float)sFbW / 320.0f + FB_H / 2 : y * SCALE;
+}
+
+void soft_set_wide(void)
+{
+    sFbW = FB_MAX_W;
+    sScX1 = sFbW;
+}
 
 const unsigned int *soft_framebuffer(int *w, int *h)
 {
@@ -149,20 +180,41 @@ void gfx_set_alpha_test(float ref)
     sAlphaRef = ref;
 }
 
-void gfx_set_scissor(float x0, float y0, float x1, float y1)
+static void apply_scissor(void)
 {
-    sScX0 = (int)(x0 * SCALE);
-    sScY0 = (int)(y0 * SCALE);
-    sScX1 = (int)(x1 * SCALE);
-    sScY1 = (int)(y1 * SCALE);
+    sScX0 = (int)map_x(sScissor[0]);
+    sScY0 = (int)map_y(sScissor[1]);
+    sScX1 = (int)map_x(sScissor[2]);
+    sScY1 = (int)map_y(sScissor[3]);
+    if (sWide == GFX_WIDE_2D)
+    {
+        if (sScissor[0] > -0.5f && sScissor[0] <= 0.0f) sScX0 = 0;
+        if (sScissor[2] >= 320.0f && sScissor[2] < 320.5f) sScX1 = FB_W;
+    }
+    else if (sWide == GFX_WIDE_OFF)
+    {
+        if (sScX0 < pic_left()) sScX0 = pic_left();
+        if (sScX1 > pic_left() + 320 * SCALE) sScX1 = pic_left() + 320 * SCALE;
+    }
     if (sScX0 < 0) sScX0 = 0;
     if (sScY0 < 0) sScY0 = 0;
     if (sScX1 > FB_W) sScX1 = FB_W;
     if (sScY1 > FB_H) sScY1 = FB_H;
 }
 
+void gfx_set_scissor(float x0, float y0, float x1, float y1)
+{
+    sScissor[0] = x0;
+    sScissor[1] = y0;
+    sScissor[2] = x1;
+    sScissor[3] = y1;
+    sScissorOn = 1;
+    apply_scissor();
+}
+
 void gfx_disable_scissor(void)
 {
+    sScissorOn = 0;
     sScX0 = sScY0 = 0;
     sScX1 = FB_W;
     sScY1 = FB_H;
@@ -171,7 +223,24 @@ void gfx_disable_scissor(void)
 void gfx_display_map(float *scaleX, float *scaleY, float *left, float *top)
 {
     *scaleX = *scaleY = (float)SCALE;
-    *left = *top = 0.0f;
+    *left = (float)pic_left();
+    *top = 0.0f;
+}
+
+int gfx_display_wide(void)
+{
+    return sFbW != 320 * SCALE;
+}
+
+void gfx_set_wide(int mode)
+{
+    if (!gfx_display_wide())
+        mode = GFX_WIDE_OFF;
+    if (mode == sWide)
+        return;
+    sWide = mode;
+    if (sScissorOn)
+        apply_scissor();
 }
 
 static int wrap(int i, int n, int cm)
@@ -339,8 +408,8 @@ void gfx_draw_tris(const GfxTriVert *verts, int count)
             const GfxTriVert *v = &verts[i + j];
             float iw = (v->w != 0.0f) ? 1.0f / v->w : 1.0f;
 
-            s[j].x = v->x * SCALE;
-            s[j].y = v->y * SCALE;
+            s[j].x = map_x(v->x);
+            s[j].y = map_y(v->y);
             s[j].z = iw; /* the depth, as gfx_xbox.c's: 1/w, nearer is larger */
             s[j].iw = iw;
             s[j].uw = v->u * iw;

@@ -21,6 +21,7 @@
 #define PACKETS 5
 
 static LPDIRECTSOUND sDS;
+static volatile LONG sQueued = PACKETS * PACKET; /* frames on the stream, for host_audio_queued */
 static LPDIRECTSOUNDSTREAM sStream;
 static int16_t *sPcm[PACKETS];
 static DWORD sStatus[PACKETS];
@@ -41,6 +42,13 @@ void host_audio_unlock(void)
 int host_audio_lock_held(void)
 {
     return 0;
+}
+
+/* what the stream still has to play: the game thread keeps this and the ring
+ * together a packet ahead (dkr_audio_fill) */
+int host_audio_queued(void)
+{
+    return (int)sQueued;
 }
 
 /* ----------------------------------------------------------- the stream */
@@ -78,6 +86,7 @@ static DWORD WINAPI audio_thread(LPVOID arg)
             head = (head + 1) % PACKETS;
             queued--;
         }
+        sQueued = queued * PACKET;
         /* refill with a packet of the game's sound, or, when the stream is
          * down to its last packet, with what there is and silence */
         while (queued < PACKETS && (dkr_audio_waiting() >= PACKET || queued <= 1))
@@ -92,6 +101,7 @@ static DWORD WINAPI audio_thread(LPVOID arg)
             queued++;
             xb_audio_packets++;
         }
+        sQueued = queued * PACKET;
     }
     return 0;
 }

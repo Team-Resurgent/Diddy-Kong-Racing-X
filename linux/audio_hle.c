@@ -44,7 +44,7 @@ typedef signed long long s64;
 // ---------------------------------------------------------------------------
 // RSP state
 // ---------------------------------------------------------------------------
-static u8 sDmem[DMEM_SIZE];
+static u8 sDmem[DMEM_SIZE + 16]; // (the slack: an s16 read at the last byte, see dmem16)
 
 static u16 sIn, sOut, sCount;            // SETBUFF, no flags
 static u16 sDryRight, sWetLeft, sWetRight; // SETBUFF | A_AUX
@@ -71,9 +71,15 @@ static s16 clamp16(s32 v) {
     return (s16) v;
 }
 
-// DMEM is byte-addressed but every audio buffer in it is s16-aligned.
+// DMEM is byte-addressed, and an s16 buffer in it need not start on an even
+// byte: a RAW16 wave whose samples lie at an odd address in the asset image
+// (one of the music instruments) comes out of __amDMA at that odd address, and
+// alRaw16Pull carries the odd alignment through into the resampler's input.
+// Rounding the address down to even, as this did, read every sample as half of
+// one and half of the next -- a loud hiss wherever that instrument played (music
+// test 11). x86 reads s16s at odd addresses as they are.
 static s16 *dmem16(u32 addr) {
-    return (s16 *) &sDmem[addr & (DMEM_SIZE - 2)];
+    return (s16 *) &sDmem[addr & (DMEM_SIZE - 1)];
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +379,7 @@ static void op_adpcm(u32 w0, u32 w1) {
                 if (nibble > 7) {
                     nibble -= 16;
                 }
-                residual[i] = nibble << scale;
+                residual[i] = (s16) (nibble << scale); // a 16-bit RSP lane
             }
             src += 8;
 
@@ -485,17 +491,27 @@ static void op_envmixer(u32 w0, u32 w1) {
         // sounds like static. The ucode interpolates inside the group (sm64-port's
         // envmixer computes all 8 per-sample volumes); rate>>3 per sample is the
         // same slope, smooth, and clamped at the target either way.
+        //
+        // In 64 bits: a zero-length segment (a note with no attack, a volume set
+        // at once) has the largest rate _getRate() makes, a step of ~4096 a
+        // sample, and near full volume a 32-bit sum wrapped negative, missed the
+        // target and ramped round again for the rest of the note -- a buzz the
+        // RSP, which saturates, never makes.
         {
             s32 i;
 
             for (i = 0; i < 2; i++) {
+                s64 v, to;
+
                 if (rate[i] == 0) {
                     continue; // steady volume: hold it, don't snap to the target
                 }
-                volAccu[i] += rate[i] >> 3;
-                if (rate[i] > 0 ? (volAccu[i] >> 16) > target[i] : (volAccu[i] >> 16) < target[i]) {
-                    volAccu[i] = target[i] << 16;
+                v = (s64) volAccu[i] + (rate[i] >> 3);
+                to = (s64) target[i] << 16;
+                if (rate[i] > 0 ? v > to : v < to) {
+                    v = to;
                 }
+                volAccu[i] = (s32) v;
             }
         }
     }

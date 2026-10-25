@@ -54,6 +54,7 @@ static int sEepromDirty;
 static int sCPakDirty[HOST_PADS];
 
 const unsigned int *soft_framebuffer(int *w, int *h);
+void soft_set_wide(void);
 void gfx_init(void);
 
 /* ----------------------------------------------------------- platform */
@@ -192,6 +193,12 @@ void rt_fault_report(void);
 
 void host_audio_lock(void)
 {
+}
+
+/* (no output queue: the harness's sound is what dkr_audio.c's ring holds) */
+int host_audio_queued(void)
+{
+    return 0;
 }
 
 void host_audio_unlock(void)
@@ -526,6 +533,10 @@ static void time_frame(void)
 }
 
 /* gfx_soft.c's gfx_frame_end: the frame is drawn */
+void music_play(unsigned char seqID); /* src/audio.c */
+unsigned char music_sequence_count(void);
+static int sMusic = -1;
+
 void host_frame_done(void)
 {
     int i, shot = sEvery > 0 && sFrame > 0 && sFrame % sEvery == 0;
@@ -541,6 +552,14 @@ void host_frame_done(void)
         snprintf(path, sizeof(path), "%s/frame_%05d.png", sOut, sFrame);
         write_png(path, fb, w, h);
         printf("HOST: %s\n", path);
+    }
+
+    /* --music: the sequence the audio options' music test would play, from
+     * frame 300 (the title screen, its own music started) */
+    if (sMusic >= 0 && sFrame == 300)
+    {
+        music_play((unsigned char)sMusic);
+        printf("HOST: music %d of %d\n", sMusic, music_sequence_count());
     }
 
     /* a sixtieth of a second of sound a frame (367.5 samples: 367 and 368 in
@@ -662,7 +681,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--every")) { sEvery = atoi(v); i++; }
         else if (!strcmp(argv[i], "--out")) { sOut = v; i++; }
         else if (!strcmp(argv[i], "--time")) { sTime = 1; gSoftNoRaster = 1; }
+        else if (!strcmp(argv[i], "--wide")) { soft_set_wide(); } /* a 16:9 display, for widescreen */
         else if (!strcmp(argv[i], "--threaded")) { sThreaded = 1; }
+        else if (!strcmp(argv[i], "--music")) { sMusic = atoi(v); i++; } /* a music test number */
         else if (!strcmp(argv[i], "--eeprom")) { sEeprom = v; i++; }
         else if (!strcmp(argv[i], "--script")) { load_script(v); i++; }
         else if (!strcmp(argv[i], "--wav"))

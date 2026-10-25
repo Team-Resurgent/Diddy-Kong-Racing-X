@@ -19,22 +19,22 @@
 // the layout, in dkr_overlay.h's 960x720
 #define PANEL_X0 150.0f
 #define PANEL_X1 810.0f
-#define PANEL_Y0 88.0f
-#define PANEL_Y1 646.0f
+#define PANEL_Y0 60.0f
+#define PANEL_Y1 676.0f
 #define BORDER 4.0f
 #define RADIUS 30.0f
-#define HEADER_Y1 182.0f
-#define TITLE_Y 135.0f
-#define ROWS_Y 236.0f
-#define ROW_STEP 62.0f
-#define ROW_HALF 26.0f
+#define HEADER_Y1 154.0f
+#define TITLE_Y 107.0f
+#define ROWS_Y 208.0f
+#define ROW_STEP 58.0f
+#define ROW_HALF 24.0f
 #define ROW_X0 186.0f
 #define ROW_X1 774.0f
 #define LABEL_X 214.0f
 #define VALUE_X 744.0f
 #define ARROW_GAP 12.0f
 #define ARROW_SIZE 9.0f
-#define FOOTER_Y 610.0f
+#define FOOTER_Y 634.0f
 #define BADGE_RADIUS 15.0f
 
 // colours, 0xAARRGGBB: the game's own blues and golds

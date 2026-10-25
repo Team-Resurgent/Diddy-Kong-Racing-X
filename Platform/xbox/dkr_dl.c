@@ -39,6 +39,7 @@ typedef struct {
     f32 clip[4];
     f32 u, v; // texel coords, filled in per-triangle from the Triangle's UVs
     u8 r, g, b, a;
+    u8 persp; // made by a perspective matrix: the 3D scene, not the 2D layer
 } GfxVertex;
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,19 @@ static u32 sGfxFrameCount = 0;
 
 static f32 sMatrices[3][4][4]; // G_MTX_DKR_INDEX_0..2
 static s32 sCurMatrix = 0;
+// Whether each matrix projects in perspective: w varies with the vertex. The
+// game multiplies its matrices together itself, so this is how the 3D scene
+// (widened, under widescreen) is told from the HUD's flat ortho drawing.
+static s32 sMatrixPersp[3];
+// widescreen, for the list being drawn: taken when the game hands a list over,
+// so a frozen frame (the settings menu) keeps the projection it was built with
+static s32 sWideFrame;
+// and whether its 3D world is widened too: a view the screen frames is not
+static s32 sWideWorld;
+// where the 2D goes: G_MW_DKR_DRAW_SPACE (include/f3ddkr.h), SAFE each frame,
+// and how far WIDE_SHIFT moves it
+static s32 sDrawSpace;
+static f32 sDrawShift;
 static s32 sBillboard = FALSE;
 
 static GfxVertex sVerts[GFX_MAX_VERTS];
@@ -287,8 +301,14 @@ static void mtx_to_float(const Mtx *m, f32 out[4][4]) {
  * billboarding — add the anchor's clip coordinates, then perspective divide and
  * map through the viewport.
  */
-static void load_vertex(GfxVertex *dst, const Vertex *v, const f32 *anchor) {
+static void load_vertex(GfxVertex *dst, const Vertex *v, const GfxVertex *anchorVtx) {
     const f32 (*m)[4] = sMatrices[sCurMatrix];
+    const f32 *anchor = (anchorVtx != NULL) ? anchorVtx->clip : NULL;
+    // a billboard's corners are offsets from its anchor, made by a flat matrix
+    // of their own: they belong where the anchor does -- the 3D scene for a
+    // tree, the HUD for a sprite drawn with the HUD's matrix. (Read before the
+    // anchor itself may be overwritten.)
+    u8 persp = (u8) ((anchorVtx != NULL) ? anchorVtx->persp : sMatrixPersp[sCurMatrix]);
     f32 x = v->x, y = v->y, z = v->z;
     s32 i;
 
@@ -299,6 +319,7 @@ static void load_vertex(GfxVertex *dst, const Vertex *v, const f32 *anchor) {
         }
     }
 
+    dst->persp = persp;
     dst->r = v->r;
     dst->g = v->g;
     dst->b = v->b;
@@ -333,7 +354,7 @@ static void handle_vertex(u32 w0, u32 w1) {
     for (i = 0; i < count && dstIdx + i < GFX_MAX_VERTS; i++) {
         // Billboarded vertices are sprite-space offsets from vertex 0, the
         // anchor pushed just before the billboard matrix.
-        load_vertex(&sVerts[dstIdx + i], &src[i], sBillboard ? sVerts[0].clip : NULL);
+        load_vertex(&sVerts[dstIdx + i], &src[i], sBillboard ? &sVerts[0] : NULL);
     }
 
 }
@@ -836,6 +857,57 @@ static void apply_render_mode(void) {
  * G_TRIN — DKR's polygon command. w1 points at an array of Triangles (vertex
  * indices plus UVs); shade each one from its vertex colours.
  */
+/** How the 2D drawn now lies on a widescreen display: the game's draw space. */
+static s32 space_wide(void) {
+    switch (sDrawSpace) {
+        case G_DKR_SPACE_WIDE:
+        case G_DKR_SPACE_WIDE_LEFT:
+        case G_DKR_SPACE_WIDE_RIGHT:
+        case G_DKR_SPACE_WIDE_SHIFT:
+            return GFX_WIDE_2D;
+        case G_DKR_SPACE_COVER:
+            return GFX_WIDE_COVER;
+        default:
+            return GFX_WIDE_OFF;
+    }
+}
+
+/** How far the space moves the 2D sideways, in N64 pixels: the HUD's anchors. */
+static f32 space_shift(void) {
+    switch (sDrawSpace) {
+        case G_DKR_SPACE_WIDE_LEFT:
+            return GFX_WIDE_X0;
+        case G_DKR_SPACE_WIDE_RIGHT:
+            return GFX_WIDE_X1 - N64_SCREEN_W;
+        case G_DKR_SPACE_WIDE_SHIFT:
+            return sDrawShift;
+        default:
+            return 0.0f;
+    }
+}
+
+/**
+ * Widescreen, for the batch about to be drawn. The 3D world goes across the
+ * whole display (its projection is already 16:9, src/camera.c) unless the
+ * screen frames it (src/menu.c), when it stays in the 4:3 picture, as Golden
+ * Balloon keeps it. Everything else goes where the game's draw space says.
+ */
+static void batch_wide(s32 persp) {
+    if (!sWideFrame) {
+        gfx_set_wide(GFX_WIDE_OFF);
+    } else if (persp) {
+        gfx_set_wide(sWideWorld ? GFX_WIDE_3D : GFX_WIDE_OFF);
+    } else {
+        f32 dx = space_shift();
+        s32 i;
+
+        for (i = 0; dx != 0.0f && i < sTriVertCount; i++) {
+            sTriVerts[i].x += dx;
+        }
+        gfx_set_wide(space_wide());
+    }
+}
+
 static void handle_polygon(u32 w0, u32 w1) {
     const Triangle *tris = (const Triangle *) w1;
     u32 params = (w0 >> 16) & 0xFF;
@@ -913,6 +985,7 @@ static void handle_polygon(u32 w0, u32 w1) {
         emit_triangle(&v[0], &v[1], &v[2], !(tris[i].flags & BACKFACE_DRAW));
     }
 
+    batch_wide(count > 0 && sVerts[tris[0].vi0 % GFX_MAX_VERTS].persp);
     apply_render_mode();
     gfx_set_fog((sGeometryMode & G_FOG) != 0, sFogColor);
     gfx_bind_texture(texture);
@@ -1187,6 +1260,39 @@ static void draw_2d_quad(f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1,
     } else {
         gfx_set_texenv_modulate();
     }
+    // Widescreen. A rectangle across the whole N64 screen's width (a fill, a
+    // dimmed screen, the cutscene bars) is a screen effect: it goes across the
+    // display's, whatever the draw space. In the WIDE space, a rectangle at
+    // either edge (a tiled background's end tiles) carries on to the display's.
+    // Either way its texture carries on at the same rate: more tiles, not wider.
+    if (sWideFrame) {
+        s32 mode = space_wide();
+        s32 full = x0 <= 0.0f && x1 >= N64_SCREEN_W - 1.0f;
+        f32 dx = space_shift();
+
+        if (dx != 0.0f) {
+            // a HUD element, moved out towards its edge
+            for (i = 0; i < 6; i++) {
+                q[i].x += dx;
+            }
+        } else if (mode != GFX_WIDE_COVER && (full || sDrawSpace == G_DKR_SPACE_WIDE)) {
+            f32 dudx = (x1 != x0) ? (u1 - u0) / (x1 - x0) : 0.0f;
+
+            for (i = 0; i < 6; i++) {
+                if (q[i].x == x0 && x0 <= 0.0f) {
+                    q[i].u += (GFX_WIDE_X0 - x0) * dudx;
+                    q[i].x = GFX_WIDE_X0;
+                } else if (q[i].x == x1 && x1 >= N64_SCREEN_W - 1.0f) {
+                    q[i].u += (GFX_WIDE_X1 - x1) * dudx;
+                    q[i].x = GFX_WIDE_X1;
+                }
+            }
+            mode = GFX_WIDE_2D;
+        }
+        gfx_set_wide(mode);
+    } else {
+        gfx_set_wide(GFX_WIDE_OFF);
+    }
 
     // The 2D layer is ordered by the display list, not by depth. Everything the
     // last material batch left set has to be undone; the next G_TRIN re-applies
@@ -1321,6 +1427,8 @@ static void run_dl(const Gfx *dl, s32 count, s32 depth) {
                 s32 slot = (((w0 >> 16) & 0xFF) >> 6) & 3;
                 if (w1 != 0 && slot < 3) {
                     mtx_to_float((const Mtx *) w1, sMatrices[slot]);
+                    sMatrixPersp[slot] = sMatrices[slot][0][3] != 0.0f || sMatrices[slot][1][3] != 0.0f ||
+                                         sMatrices[slot][2][3] != 0.0f;
                     sCurMatrix = slot;
                 }
                 break;
@@ -1331,6 +1439,9 @@ static void run_dl(const Gfx *dl, s32 count, s32 depth) {
                     sCurMatrix = (w1 >> 6) & 3;
                 } else if (index == G_MW_BILLBOARD) {
                     sBillboard = (w1 != 0);
+                } else if (index == G_MW_DKR_DRAW_SPACE) {
+                    sDrawSpace = (s32) (w1 & 0xFF);
+                    sDrawShift = (f32) (s16) (w1 >> 16) * 0.25f;
                 } else if (index == G_MW_FOG) {
                     // gSPFogPosition packs the multiplier in the high half and the
                     // offset in the low half; both are signed.
@@ -1582,6 +1693,7 @@ static void draw_task(void *dlBegin, void *dlEnd) {
     sTileUlt = 0;
     sOtherModeL = 0;
     sGeometryMode = GFX_GEOMETRY_MODE_INIT;
+    sDrawSpace = G_DKR_SPACE_SAFE;
 
     // The list sets its own scissor and viewport before it draws anything
     // (src/rcp_dkr.c), but don't inherit last frame's rects until it does.
@@ -1602,6 +1714,8 @@ static void draw_task(void *dlBegin, void *dlEnd) {
  * game built it and has not run since -- so the frozen frame is exact.
  */
 void pc_gfx_task_submit(void *dlBegin, void *dlEnd) {
+    sWideFrame = dkr_widescreen();
+    sWideWorld = dkr_widescreen_world();
     do {
         draw_task(dlBegin, dlEnd);
     } while (dkr_menu_update());

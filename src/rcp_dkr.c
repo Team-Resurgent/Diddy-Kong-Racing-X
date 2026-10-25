@@ -1,5 +1,6 @@
 #include "rcp_dkr.h"
 #include "camera.h"
+#include "f3ddkr.h"
 #include "macros.h"
 #include "memory.h"
 #include "racer.h"
@@ -444,6 +445,10 @@ void bgdraw_render(Gfx **dList, Mtx **mtx, s32 drawBG) {
     gDPFillRectangle((*dList)++, 0, 0, w - 1, h - 1);
     gDPPipeSync((*dList)++);
     gDPSetColorImage((*dList)++, G_IM_FMT_RGBA, G_IM_SIZ_16b, w, SEGMENT_FRAMEBUFFER << 24);
+#ifdef TARGET_XBOX
+    // widescreen: the background goes out to the display's edges
+    gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_WIDE);
+#endif
     if (drawBG) {
         if (check_viewport_background_flag(PLAYER_ONE)) {
             if (gChequerBGEnabled) {
@@ -459,6 +464,10 @@ void bgdraw_render(Gfx **dList, Mtx **mtx, s32 drawBG) {
             // Used for secondary viewport backgrounds. This does not need to be 1 cycle, this could easily work with
             // fillmode.
             if (copy_viewport_background_size_to_coords(0, &x1, &y1, &x2, &y2)) {
+#ifdef TARGET_XBOX
+                // (behind a framed view, the 4:3 picture's)
+                gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
                 gDPSetCycleType((*dList)++, G_CYC_1CYCLE);
                 gDPSetPrimColor((*dList)++, 0, 0, sBGPrimColourR, sBGPrimColourG, sBGPrimColourB, 255);
                 gDPSetCombineMode((*dList)++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
@@ -480,6 +489,9 @@ void bgdraw_render(Gfx **dList, Mtx **mtx, s32 drawBG) {
         }
     }
     gDPPipeSync((*dList)++);
+#ifdef TARGET_XBOX
+    gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
     viewport_scissor(dList);
 }
 

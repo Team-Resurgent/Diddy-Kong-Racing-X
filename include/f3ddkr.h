@@ -151,6 +151,32 @@
 #define G_MW_BILLBOARD 0x02 //0x01 = billboarding enabled, 0x00 = disabled
 #define G_MW_MVPMATRIX 0x0A  //Specifies the index of the mvp matrix. 
 #define G_VTX_APPEND 1
+#ifdef TARGET_XBOX
+/*
+ * The Xbox port's widescreen: where the 2D drawn after this goes on a 16:9
+ * display (Platform/xbox/dkr_dl.c). A MoveWord index the microcode has no use
+ * for; every frame starts SAFE.
+ *   SAFE   the 4:3 picture in the middle, clipped to it: menus, text, anything
+ *          laid out for the N64's screen
+ *   WIDE   the same layout, but free to reach the display's edges: backgrounds
+ *          (tiled out to them) and the race HUD (moved out to them)
+ *   COVER  scaled up evenly to cover the whole display: fades and wipes
+ *   WIDE_LEFT, WIDE_RIGHT  WIDE, moved out by the width of a side strip: the
+ *          one-player race HUD's elements, to the edge each sits nearest
+ *   WIDE_SHIFT  WIDE, moved by the N64 pixels given (G_DKR_SPACE_SHIFTED):
+ *          a split screen's HUD, kept over its own player's view
+ */
+#define G_MW_DKR_DRAW_SPACE 0x10
+#define G_DKR_SPACE_SAFE 0
+#define G_DKR_SPACE_WIDE 1
+#define G_DKR_SPACE_COVER 2
+#define G_DKR_SPACE_WIDE_LEFT 3
+#define G_DKR_SPACE_WIDE_RIGHT 4
+#define G_DKR_SPACE_WIDE_SHIFT 5
+#define gDkrSetDrawSpace(pkt, space) gMoveWd(pkt, G_MW_DKR_DRAW_SPACE, 0, (space))
+// the space's word for WIDE_SHIFT by dx N64 pixels (a quarter-pixel s16 in the top half)
+#define G_DKR_SPACE_SHIFTED(dx) (G_DKR_SPACE_WIDE_SHIFT | ((u32) (u16) (s16) ((dx) * 4.0f) << 16))
+#endif
 
 #define gDkrEnableBillboard(pkt)            \
 	gMoveWd(pkt, G_MW_BILLBOARD, 0, 1)  

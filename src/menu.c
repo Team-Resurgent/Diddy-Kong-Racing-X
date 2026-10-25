@@ -34,6 +34,9 @@
 #include "tracks.h"
 #include "types.h"
 #include "video.h"
+#ifdef TARGET_XBOX
+#include "dkr_settings.h"
+#endif
 
 /**
  * @file Contains all the code used for every menu in the game.
@@ -2532,6 +2535,10 @@ void reset_title_logo_scale(void) {
 void menu_init(u32 menuId) {
     s32 i;
 
+#ifdef TARGET_XBOX
+    // a screen that frames the world says so itself
+    dkr_widescreen_framed(FALSE);
+#endif
     gCurrentMenuId = menuId;
     reset_controller_sticks();
     gIgnorePlayerInputTime = 1;
@@ -8443,6 +8450,9 @@ void menu_track_select_init(void) {
     }
     gTrackSelectVertsFlip = 0;
     bgdraw_set_func(func_8008F618);
+#ifdef TARGET_XBOX
+    dkr_widescreen_framed(TRUE);
+#endif
     viewport_menu_set(0, 80, gTrackSelectViewPortHalfY - (gTrackSelectViewPortHalfY >> 1), SCREEN_HEIGHT,
                       (gTrackSelectViewPortHalfY >> 1) + gTrackSelectViewPortHalfY);
     copy_viewports_to_stack();
@@ -8601,6 +8611,12 @@ s32 menu_track_select_loop(s32 updateRate) {
     Settings *settings;
 
     settings = get_settings();
+#ifdef TARGET_XBOX
+    // Widescreen: the world is seen through the wooden window, 4:3 to fit it,
+    // until the window has opened out into the race setup (Golden Balloon's
+    // rule); back to 4:3 as soon as it starts to close again.
+    dkr_widescreen_framed(!(gTrackmenuType == TRACKMENU_TYPE_FREE && gMenuDelay >= 0));
+#endif
     gOptionBlinkTimer = (gOptionBlinkTimer + updateRate) & 0x3F;
     if (bgload_active() == FALSE && gMenuDelay != 0) {
         if (gMenuDelay < 0) {
@@ -8796,6 +8812,26 @@ s32 func_8008F618(Gfx **dList, Mtx **mtx) {
         triangles[1].uv1.v = texV;
         triangles[1].uv2.u = texU + 0x2800;
         triangles[1].uv2.v = texV;
+#ifdef TARGET_XBOX
+        // Widescreen: the band three screens wide (drawn in the WIDE space,
+        // src/rcp_dkr.c bgdraw_render), its texture carrying on at the same rate.
+        {
+            s32 wide = dkr_widescreen();
+            s32 k;
+
+            for (k = 0; k < 4; k++) {
+                tempVertices[k].x = ((k & 1) ? 160 : -160) * (wide ? 3 : 1);
+            }
+            if (wide) {
+                triangles[0].uv0.u = texU - 0x2800;
+                triangles[0].uv1.u = texU - 0x2800;
+                triangles[1].uv1.u = texU - 0x2800;
+                triangles[0].uv2.u = texU + 0x5000;
+                triangles[1].uv0.u = texU + 0x5000;
+                triangles[1].uv2.u = texU + 0x5000;
+            }
+        }
+#endif
         triangles += 2;
 
         if (bgTexture != 0) {
@@ -8845,6 +8881,10 @@ void trackmenu_render_2D(s32 x, s32 y, char *hubName, char *trackName, s32 rectO
     f32 sp54;
     s16 *offsets;
     s32 temp;
+#ifdef TARGET_XBOX
+    s32 overlayInside;
+    s32 hubNameInside;
+#endif
 
     sp6C = 0;
     xTemp = x + 160;
@@ -8852,6 +8892,25 @@ void trackmenu_render_2D(s32 x, s32 y, char *hubName, char *trackName, s32 rectO
     if (osTvType == OS_TV_TYPE_PAL) {
         sp6C = 12;
     }
+#ifdef TARGET_XBOX
+    // Widescreen, as Golden Balloon does it (game/src/menu.c,
+    // trackmenu_render_2D): the carousel builds the cards round the chosen one
+    // so they can slide into view, and on the N64 their names and arrows are
+    // cut off at the screen's edge. With side strips there is somewhere for
+    // those pieces to show, so a card's name and arrows are drawn only while
+    // the card is wholly on the 4:3 screen: its frame and arrows reach 96
+    // pixels from its middle, its names 104 above and below. The frames and
+    // pictures stay clipped to the 4:3 picture (the SAFE draw space).
+    if (!dkr_widescreen()) {
+        overlayInside = TRUE;
+        hubNameInside = TRUE;
+    } else {
+        overlayInside = xTemp >= 96 && xTemp <= SCREEN_WIDTH - 96 && yTemp >= 104 + sp6C &&
+                        yTemp <= gTrackSelectViewportY - (104 + sp6C);
+        // the hub's name is always drawn in the middle, wherever the card is
+        hubNameInside = yTemp >= 104 + sp6C && yTemp <= gTrackSelectViewportY - (104 + sp6C);
+    }
+#endif
     set_text_font(ASSET_FONTS_BIGFONT);
     set_text_background_colour(0, 0, 0, 0);
     if (gMenuDelay > 0) {
@@ -8862,7 +8921,11 @@ void trackmenu_render_2D(s32 x, s32 y, char *hubName, char *trackName, s32 rectO
     } else {
         opacity = 255;
     }
+#ifdef TARGET_XBOX
+    if (hubNameInside && hubName != gTrackMenuHubName) {
+#else
     if (hubName != gTrackMenuHubName) {
+#endif
         temp = (s32) level_name(level_world_id(WORLD_SNOWFLAKE_MOUNTAIN));
         if ((s32) hubName == temp) {
             set_kerning(TRUE);
@@ -8875,11 +8938,23 @@ void trackmenu_render_2D(s32 x, s32 y, char *hubName, char *trackName, s32 rectO
         set_kerning(FALSE);
     }
 #if REGION == REGION_JP
-    set_text_colour(0, 0, 0, 255, opacity / 2);
-    draw_text(&sMenuCurrDisplayList, xTemp + 1, sp6C + yTemp + 91, trackName, ALIGN_MIDDLE_CENTER);
+#ifdef TARGET_XBOX
+    if (overlayInside) {
 #endif
-    set_text_colour(255, 255, 255, 0, opacity);
-    draw_text(&sMenuCurrDisplayList, xTemp, sp6C + yTemp + 88, trackName, ALIGN_MIDDLE_CENTER);
+        set_text_colour(0, 0, 0, 255, opacity / 2);
+        draw_text(&sMenuCurrDisplayList, xTemp + 1, sp6C + yTemp + 91, trackName, ALIGN_MIDDLE_CENTER);
+#ifdef TARGET_XBOX
+    }
+#endif
+#endif
+#ifdef TARGET_XBOX
+    if (overlayInside) {
+#endif
+        set_text_colour(255, 255, 255, 0, opacity);
+        draw_text(&sMenuCurrDisplayList, xTemp, sp6C + yTemp + 88, trackName, ALIGN_MIDDLE_CENTER);
+#ifdef TARGET_XBOX
+    }
+#endif
     if (rectOpacity > 0) {
         if (((yTemp - (gTrackSelectViewportY >> 2)) < gTrackSelectViewportY) &&
             (((gTrackSelectViewportY >> 2) + yTemp) > 0)) {
@@ -8920,6 +8995,11 @@ void trackmenu_render_2D(s32 x, s32 y, char *hubName, char *trackName, s32 rectO
     menu_element_render(imageId);
     gTrackSelectWoodFrameHeightScale = 1.0f;
     for (i = 0; i < 4; i++) {
+#ifdef TARGET_XBOX
+        if (!overlayInside) {
+            break;
+        }
+#endif
         if ((1 << i) & arg8) {
             texrect_draw(&sMenuCurrDisplayList, gMenuSelectionArrows[i], offsets[(i << 1)] + xTemp + 1,
                          offsets[(i << 1) + 1] + yTemp + 1, 0, 0, 0, 128);
@@ -10570,6 +10650,9 @@ void postrace_start(s32 finishState, s32 worldID) {
     LevelHeader *header;
 
     rumble_init(FALSE);
+#ifdef TARGET_XBOX
+    dkr_widescreen_framed(FALSE);
+#endif
     header = level_header();
     gPostraceFinishState = finishState;
     if (is_in_two_player_adventure()) {
@@ -10750,6 +10833,10 @@ void postrace_viewport(UNUSED s32 updateRate) {
     s32 var_v0;
 
     settings = get_settings();
+#ifdef TARGET_XBOX
+    // widescreen: the results show the world in a frame, 4:3 to fit it
+    dkr_widescreen_framed(gMenuStage != POSTRACE_STAGE_BEGIN);
+#endif
     if (gNumberOfActivePlayers == 1) {
         mtx_ortho(&sMenuCurrDisplayList, &sMenuCurrHudMat);
     }
@@ -11292,6 +11379,9 @@ void postrace_free(void) {
     s32 headerWorldTex;
     LevelHeader *header;
 
+#ifdef TARGET_XBOX
+    dkr_widescreen_framed(FALSE);
+#endif
     header = level_header();
     menu_assetgroup_free(gRaceResultsObjectIndices);
     headerWorldTex = header->world - 1;
