@@ -677,6 +677,12 @@ static void append_tri(const GfxTriVert *v, s32 cull) {
     }
     if (cull) {
         area = ((v[1].x - v[0].x) * (v[2].y - v[0].y)) - ((v[2].x - v[0].x) * (v[1].y - v[0].y));
+        // G_CULL_FRONT: the game's mirrored tracks (Adventure 2, the mirror
+        // code) flip the picture, which turns every winding round, and set it
+        // to cull the other side instead
+        if (sGeometryMode & G_CULL_FRONT) {
+            area = -area;
+        }
         if (area * GFX_FRONT_FACE_SIGN <= 0.0f) {
             return;
         }

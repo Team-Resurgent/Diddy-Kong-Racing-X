@@ -1414,7 +1414,13 @@ MenuElement gRecordTimesMenuElements[9] = {
 // The length of the array must be a power of two.
 u8 gFileNameValidChars[32] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ.?    ";
 
+#ifdef TARGET_PC
+// A one-letter string for draw_text: the N64 passed the address of a lone char,
+// relying on the byte after it in memory being 0. Here the terminator is its own.
+char gCurFilenameCharBeingDrawn[2] = { '\0', '\0' };
+#else
 char gCurFilenameCharBeingDrawn = '\0';
+#endif
 s32 gEnterInitalsY = 192;
 s32 gFilenameX = 160;
 s32 gFilenameY = 120;
@@ -11945,8 +11951,13 @@ void filename_render(UNUSED s32 updateRate) {
             }
             if (charIndex < 28) {
                 set_text_font(ASSET_FONTS_BIGFONT);
+#ifdef TARGET_PC
+                gCurFilenameCharBeingDrawn[0] = gFileNameValidChars[charIndex];
+                draw_text(&sMenuCurrDisplayList, x, y, gCurFilenameCharBeingDrawn, ALIGN_MIDDLE_CENTER);
+#else
                 gCurFilenameCharBeingDrawn = gFileNameValidChars[charIndex];
                 draw_text(&sMenuCurrDisplayList, x, y, &gCurFilenameCharBeingDrawn, ALIGN_MIDDLE_CENTER);
+#endif
             } else {
                 set_text_font(ASSET_FONTS_FUNFONT);
                 if (charIndex == 28) {

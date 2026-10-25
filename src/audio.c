@@ -698,6 +698,31 @@ void music_dynamic_set(u16 channelMask) {
     }
 }
 
+#ifdef TARGET_PC
+/**
+ * A channel muted or unmuted while a new song waits for the old one to stop
+ * (music_play only queues it, gMusicNextSeqID): kept for the new song, as
+ * music_dynamic_set's mask is, and applied when it starts (music_sequence_init).
+ * Sent to the player alone it was lost: the old song's stop turns every
+ * channel back on (csplayer.c, AL_SEQP_STOP_EVT), and the character select's
+ * song then started with every character's instruments playing at once. On
+ * the N64 the audio thread's timing kept the stop ahead of the mutes.
+ */
+static void music_channel_pending(u8 channel, s32 on) {
+    if (gMusicNextSeqID == SEQUENCE_NONE) {
+        return;
+    }
+    if (gDynamicMusicChannelMask == MUSIC_CHAN_MASK_NONE) {
+        gDynamicMusicChannelMask = (1 << AUDIO_CHANNELS) - 1;
+    }
+    if (on) {
+        gDynamicMusicChannelMask |= 1 << channel;
+    } else {
+        gDynamicMusicChannelMask &= ~(1 << channel);
+    }
+}
+#endif
+
 /**
  * Mute the sequence channel, preventing it from playing any sound.
  * Official Name: amTuneMuteChl
@@ -705,6 +730,9 @@ void music_dynamic_set(u16 channelMask) {
 void music_channel_off(u8 channel) {
     MUSIC_PC_GUARD();
     if (channel < AUDIO_CHANNELS) {
+#ifdef TARGET_PC
+        music_channel_pending(channel, FALSE);
+#endif
         alSeqChOff(gMusicPlayer, channel);
 #ifdef DKR_AICAFLOW
         dkr_afx_music_lane_mute(channel, TRUE);
@@ -727,6 +755,9 @@ s32 music_channel_active(s32 channel) {
 void music_channel_on(u8 channel) {
     MUSIC_PC_GUARD();
     if (channel < AUDIO_CHANNELS) {
+#ifdef TARGET_PC
+        music_channel_pending(channel, TRUE);
+#endif
         alSeqChOn(gMusicPlayer, channel);
 #ifdef DKR_AICAFLOW
         dkr_afx_music_lane_mute(channel, FALSE);
@@ -909,9 +940,20 @@ f32 music_animation_fraction(void) {
     if (gMusicPlaying == FALSE) {
         sMusicTempo = 182;
     }
+#ifdef TARGET_PC
+    // While a song is starting its tempo is not known yet (-1, music_sequence_init):
+    // a beat of -120000 never ended the loop below, and the game hung for good
+    // (the hub's music-driven objects call this every frame). Use the default
+    // tempo until the song's own is in, and wrap the phase in one step.
+    tmp = 120000.0f / (f32) ((sMusicTempo > 0) ? sMusicTempo : 182);
+    if (gMusicAnimationTick > tmp) {
+        gMusicAnimationTick -= tmp * (f32) (s32) (gMusicAnimationTick / tmp);
+    }
+#else
     for (tmp = 120000.0f / (f32) sMusicTempo; tmp < gMusicAnimationTick; gMusicAnimationTick -= tmp) {
         ;
     }
+#endif
     audioPrevCount = (s32) cnt;
     return gMusicAnimationTick / tmp;
 }

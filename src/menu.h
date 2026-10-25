@@ -342,8 +342,16 @@ typedef struct unk801263C0 {
     s8 unk1;
     union {
         struct {
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+            // unk3 is unk2's low byte: its value while it is a fade (0..127), which the
+            // character select gives a character's second instrument. Laid out as on
+            // the N64, a little-endian host made it the high byte, 0: silent.
+            s8 unk3;
+            s8 unk2a;
+#else
             s8 unk2a;
             s8 unk3;
+#endif
         };
         s16 unk2;
     };
