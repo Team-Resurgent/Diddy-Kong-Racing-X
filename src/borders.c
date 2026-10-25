@@ -37,7 +37,14 @@ void divider_draw(Gfx **dList) {
             levelHeader = level_header();
             // Draw black square in the bottom-right corner.
             if (hud_setting() || (levelHeader->race_type & RACETYPE_CHALLENGE)) {
+#ifdef TARGET_XBOX
+                // widescreen: out to the display's right edge, as the quarter's view would be
+                gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_WIDE);
+#endif
                 gDPFillRectangle((*dList)++, width >> 1, height >> 1, width, height);
+#ifdef TARGET_XBOX
+                gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
             }
             // There is no break statement here. This is intentional.
         case VIEWPORT_LAYOUT_4_PLAYERS:
