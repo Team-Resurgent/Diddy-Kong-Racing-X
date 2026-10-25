@@ -1261,13 +1261,16 @@ static void draw_2d_quad(f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1,
         gfx_set_texenv_modulate();
     }
     // Widescreen. A rectangle across the whole N64 screen's width (a fill, a
-    // dimmed screen, the cutscene bars) is a screen effect: it goes across the
-    // display's, whatever the draw space. In the WIDE space, a rectangle at
-    // either edge (a tiled background's end tiles) carries on to the display's.
-    // Either way its texture carries on at the same rate: more tiles, not wider.
+    // dimmed screen, the cutscene bars) is a screen effect: while the world is
+    // widened it goes across the display's, whatever the draw space. (A screen
+    // that frames the world keeps it to the 4:3 picture, as Golden Balloon
+    // does: the sides stay dark rather than the level's background colour.) In
+    // the WIDE space, a rectangle at either edge (a tiled background's end
+    // tiles) carries on to the display's. Either way its texture carries on at
+    // the same rate: more tiles, not wider.
     if (sWideFrame) {
         s32 mode = space_wide();
-        s32 full = x0 <= 0.0f && x1 >= N64_SCREEN_W - 1.0f;
+        s32 full = sWideWorld && x0 <= 0.0f && x1 >= N64_SCREEN_W - 1.0f;
         f32 dx = space_shift();
 
         if (dx != 0.0f) {

@@ -8611,12 +8611,6 @@ s32 menu_track_select_loop(s32 updateRate) {
     Settings *settings;
 
     settings = get_settings();
-#ifdef TARGET_XBOX
-    // Widescreen: the world is seen through the wooden window, 4:3 to fit it,
-    // until the window has opened out into the race setup (Golden Balloon's
-    // rule); back to 4:3 as soon as it starts to close again.
-    dkr_widescreen_framed(!(gTrackmenuType == TRACKMENU_TYPE_FREE && gMenuDelay >= 0));
-#endif
     gOptionBlinkTimer = (gOptionBlinkTimer + updateRate) & 0x3F;
     if (bgload_active() == FALSE && gMenuDelay != 0) {
         if (gMenuDelay < 0) {
@@ -8625,6 +8619,16 @@ s32 menu_track_select_loop(s32 updateRate) {
             gMenuDelay += updateRate;
         }
     }
+#ifdef TARGET_XBOX
+    // Widescreen: the world is seen through the wooden window, 4:3 to fit it,
+    // until the window has opened out into the race setup (Golden Balloon's
+    // rule); back to 4:3 as soon as it starts to close again. Not while the
+    // window fills the screen on its way there or back (func_8008FF1C draws
+    // no cards then, gMenuDelay past +-23): kept 4:3 that long, the view left
+    // the sides showing the level's background colour.
+    dkr_widescreen_framed(!(gTrackmenuType == TRACKMENU_TYPE_FREE && gMenuDelay >= 0) &&
+                          !(gTrackmenuType == TRACKMENU_TYPE_RESET_CURSOR && (gMenuDelay <= -23 || gMenuDelay >= 23)));
+#endif
     menu_input();
 
     // Make sure adventure 2 view doesn't cause problems later on.

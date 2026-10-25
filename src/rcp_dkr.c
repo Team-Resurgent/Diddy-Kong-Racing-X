@@ -458,6 +458,11 @@ void bgdraw_render(Gfx **dList, Mtx **mtx, s32 drawBG) {
             } else if (gBGDrawFunc != NULL) {
                 gBGDrawFunc(dList, mtx);
             } else {
+#ifdef TARGET_XBOX
+                // (a plain colour: the 4:3 picture's, carried out to the edges only
+                // when the world is, dkr_dl.c)
+                gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
                 gDPSetFillColor((*dList)++, sBackgroundFillColour);
                 gDPFillRectangle((*dList)++, 0, 0, w - 1, h - 1);
             }
@@ -482,6 +487,9 @@ void bgdraw_render(Gfx **dList, Mtx **mtx, s32 drawBG) {
             } else if (gBGDrawFunc != NULL) {
                 gBGDrawFunc(dList, mtx);
             } else {
+#ifdef TARGET_XBOX
+                gDkrSetDrawSpace((*dList)++, G_DKR_SPACE_SAFE);
+#endif
                 gDPSetFillColor((*dList)++, (GPACK_RGBA5551(sBGPrimColourR, sBGPrimColourG, sBGPrimColourB, 1) << 16) |
                                                 GPACK_RGBA5551(sBGPrimColourR, sBGPrimColourG, sBGPrimColourB, 1));
                 gDPFillRectangle((*dList)++, 0, 0, w - 1, h - 1);
