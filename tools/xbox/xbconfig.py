@@ -130,6 +130,12 @@ def rom_version():
     return "us.v77"
 
 
+def release_log():
+    """setup.py --log: the Release build prints the debug log too (the game's
+    messages and the port's own; build/dkr_log exists)."""
+    return os.path.isfile(os.path.join(ROOT, "build", "dkr_log"))
+
+
 def unlock_all():
     """setup.py --unlock-all: a console with no save yet starts from the
     100%-completion EEPROM image (build/dkr_unlock_all exists)."""
@@ -171,6 +177,8 @@ def defines():
     ]
     if unlock_all():
         d.append("EEPROM_PRESET_100")
+    if release_log():
+        d.append("DKRX_LOG")
     return d
 
 

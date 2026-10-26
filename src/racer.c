@@ -6237,7 +6237,12 @@ void func_80053750(Object *objRacer, Object_Racer *racer, f32 updateRateF) {
             }
             objRacer->particleEmittersEnabled |= OBJ_EMIT_11 | OBJ_EMIT_12;
         }
+#ifndef AVOID_UB
+        //!@bug someObj may not have been set yet: a read through a stale or
+        // uninitialised pointer (an unoptimised build crashed here restarting a
+        // level). The value is never used.
         temp_f0 = someObj->trans.y_position; // Fake
+#endif
         for (i = 0; i < 4; i++) {
             someObj = objRacer->attachPoints->obj[i];
             if (!(racer->unk1E3 & flags)) {

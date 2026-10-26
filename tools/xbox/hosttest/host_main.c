@@ -535,7 +535,12 @@ static void time_frame(void)
 /* gfx_soft.c's gfx_frame_end: the frame is drawn */
 void music_play(unsigned char seqID); /* src/audio.c */
 unsigned char music_sequence_count(void);
+void music_jingle_play(unsigned char seqID);
+unsigned int music_jingle_playing(void);
 static int sMusic = -1;
+static int sJingle = -1, sJingleFrame;
+void sound_play(unsigned short soundID, void *handlePtr);
+static int sSound = -1, sSoundFrame;
 
 void host_frame_done(void)
 {
@@ -561,6 +566,14 @@ void host_frame_done(void)
         music_play((unsigned char)sMusic);
         printf("HOST: music %d of %d\n", sMusic, music_sequence_count());
     }
+
+    /* --jingle N F: the jingle a pickup plays (src/object_functions.c), at
+     * frame F, and whether the jingle player says it is playing after */
+    if (sJingle >= 0 && sFrame == sJingleFrame)
+        music_jingle_play((unsigned char)sJingle);
+    /* --sound N F: sound effect N (the table's index, src/audio.c sound_play) at frame F */
+    if (sSound >= 0 && sFrame == sSoundFrame)
+        sound_play((unsigned short)sSound, NULL);
 
     /* a sixtieth of a second of sound a frame (367.5 samples: 367 and 368 in
      * turn) */
@@ -684,6 +697,20 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--wide")) { soft_set_wide(); } /* a 16:9 display, for widescreen */
         else if (!strcmp(argv[i], "--threaded")) { sThreaded = 1; }
         else if (!strcmp(argv[i], "--music")) { sMusic = atoi(v); i++; } /* a music test number */
+        else if (!strcmp(argv[i], "--jingle"))
+        {
+            /* a jingle's sequence number and the frame to play it at */
+            sJingle = atoi(v);
+            sJingleFrame = (i + 2 < argc) ? atoi(argv[i + 2]) : 2500;
+            i += 2;
+        }
+        else if (!strcmp(argv[i], "--sound"))
+        {
+            /* a sound effect's number and the frame to play it at */
+            sSound = atoi(v);
+            sSoundFrame = (i + 2 < argc) ? atoi(argv[i + 2]) : 2500;
+            i += 2;
+        }
         else if (!strcmp(argv[i], "--eeprom")) { sEeprom = v; i++; }
         else if (!strcmp(argv[i], "--script")) { load_script(v); i++; }
         else if (!strcmp(argv[i], "--wav"))

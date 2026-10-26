@@ -97,7 +97,13 @@ python setup.py --check         # what is present and what is missing
 python setup.py --skip-build    # everything but the compile, e.g. to build in Visual Studio
 python setup.py --config Debug  # the debug configuration
 python setup.py --unlock-all    # a console with no save yet starts from a 100% one
+python setup.py --log           # the Release build prints the debug log too
 ```
+
+The Debug build prints the game's debug log to xbWatson: level loads, every
+sound asked for and how it plays, dropped audio events. The Release build
+prints only errors, crash reports and its build stamp, unless built with
+`--log`. Like `--unlock-all`, the option holds until you build without it.
 
 `--unlock-all` builds in the decomp's 100%-completion EEPROM image
 (`include/eeprom_preset.h`): every character, track and mode open. It is only

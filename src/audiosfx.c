@@ -24,6 +24,12 @@ SoundPlayer gSoundPlayer;
 SoundPlayer *gSoundPlayerPtr = &gSoundPlayer;
 s32 gSoundGlobalVolume = 256;
 s16 gNumActiveSounds = 0;
+#if defined(TARGET_XBOX) && defined(DKRX_LOG)
+extern void dkr_printf(const char *fmt, ...);
+#define SNDP_LOG(...) dkr_printf(__VA_ARGS__)
+#else
+#define SNDP_LOG(...)
+#endif
 s16 *gSoundGroupVolume;
 
 #ifdef DKR_AICAFLOW
@@ -331,6 +337,8 @@ void sndp_handle_event(SoundPlayer *sndp, ALSndpEvent *event) {
                         alEvtqPostEvent(&sndp->evtq, (ALEvent *) event, 33333);
                     } else {
                         // Not a looped or retriggered sound, and all retries have been exhausted.
+                        SNDP_LOG("dkrx: sound state %p got no voice (active %d of %d)\n", (void *) soundState,
+                                 gNumActiveSounds, sndp->maxActiveSounds);
                         if (limitReached) {
                             // Check if we can preempt a lower-priority sound.
                             ALSoundState *iterState = gSoundStateLists.allocTail;
@@ -385,6 +393,9 @@ void sndp_handle_event(SoundPlayer *sndp, ALSndpEvent *event) {
                                    AL_SNDP_GROUP_VOLUME_MAX -
                                1);
                 volume = (u32) (volume * gSoundGlobalVolume) >> 8;
+                SNDP_LOG("dkrx: sound state %p playing at volume %d (group %d, wave type %d at %X, %d bytes)\n",
+                         (void *) soundState, volume, SOUND_PARAM_GROUP(keyMap), sound->wavetable->type,
+                         (unsigned) (u32) sound->wavetable->base, sound->wavetable->len);
                 alSynSetVol(sndp->drvr, &soundState->voice, 0, 0);
                 alSynSetVol(sndp->drvr, &soundState->voice, volume, delta);
 

@@ -213,7 +213,9 @@ static int store(int slot)
         return 0;
     }
     flush_dir();
+#ifdef DKRX_LOG
     xb_log("save: %s", path);
+#endif
     return 1;
 }
 

@@ -42,6 +42,8 @@ def main():
                              "build would overwrite one object with the other" % (seen[b], s))
         seen[b] = s
 
+    debug_defines = ["DKRX_DEBUG_BUILD"] + ([] if xbconfig.release_log() else ["DKRX_LOG"])
+
     def cfg(debug):
         return {
             "configuration": "debug" if debug else "release",
@@ -51,8 +53,9 @@ def main():
             "sources": sources,
             "libraries": LIBS_DEBUG if debug else LIBS_RELEASE,
             "includePaths": xbconfig.INCLUDE_PATHS,
-            # DKRX_DEBUG_BUILD: so the program can say which build it is
-            "defines": xbconfig.defines() + (["DKRX_DEBUG_BUILD"] if debug else []),
+            # DKRX_DEBUG_BUILD: so the program can say which build it is;
+            # DKRX_LOG: the debug log (Release has it only with setup.py --log)
+            "defines": xbconfig.defines() + (debug_defines if debug else []),
             "compileFlags": xbconfig.COMPILE_FLAGS,
             "cppStandard": "c++20",
             "exceptions": False,

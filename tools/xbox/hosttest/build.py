@@ -81,6 +81,8 @@ def main():
             flags += ["-isystem", p]
     flags += [f for f in xbconfig.COMPILE_FLAGS if not f.startswith("-U")]
     flags += ["-D" + d for d in xbconfig.defines()]
+    if not xbconfig.release_log():
+        flags.append("-DDKRX_LOG")  # the harness always prints the game's messages
     for p in xbconfig.INCLUDE_PATHS:
         flags += ["-I", os.path.join(ROOT, p)]
     sources = xbconfig.GAME_SOURCES + xbconfig.LIBULTRA_SOURCES + xbconfig.HOST_SOURCES + HARNESS

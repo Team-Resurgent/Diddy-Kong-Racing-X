@@ -1535,6 +1535,13 @@ Particle *create_line_particle(Object *obj, ParticleEmitter *emitter) {
     emitter->lineRefPoint.x += obj->trans.x_position;
     emitter->lineRefPoint.y += obj->trans.y_position;
     emitter->lineRefPoint.z += obj->trans.z_position;
+#ifdef TARGET_PC
+    // A line trail -- a kart's skid marks -- starts at the wheel, which in a
+    // slide (the kart rolled and pitched) puts parts of it up to a unit below
+    // the road. The RDP's coarse depth let it through; a host's exact depth
+    // test hid those parts under the road. A unit up is out of its way.
+    emitter->lineRefPoint.y += 1.0f;
+#endif
 
     particle->lineCreationPhase = 0;
     particle->lineOrientation = 0;

@@ -6,6 +6,7 @@
     python setup.py --skip-build    # stop before compiling (to build in Visual Studio)
     python setup.py --config Debug  # the debug configuration
     python setup.py --unlock-all    # a console with no save yet starts at 100%
+    python setup.py --log           # Release prints the debug log too (Debug always does)
 
 Needs: Python 3.8+ (standard library only), the RXDK (its clang also builds
 the ROM extractor), and your Diddy Kong Racing ROM (USA, v1.0 or v1.1) in this
@@ -294,13 +295,14 @@ def tool(name, *args):
     run([sys.executable, os.path.join(ROOT, "tools", "xbox", name)] + list(args))
 
 
-def step_xbox(version, unlock):
+def step_xbox(version, unlock, log):
     write_if_changed(xbconfig.VERSION_FILE, version + "\n")
-    flag = os.path.join(BUILD, "dkr_unlock_all")
-    if unlock and not os.path.isfile(flag):
-        open(flag, "w").close()
-    elif not unlock and os.path.isfile(flag):
-        os.remove(flag)
+    for name, on in (("dkr_unlock_all", unlock), ("dkr_log", log)):
+        flag = os.path.join(BUILD, name)
+        if on and not os.path.isfile(flag):
+            open(flag, "w").close()
+        elif not on and os.path.isfile(flag):
+            os.remove(flag)
     tool("make_icons.py")
     tool("gen_font.py")
     tool("gen_manifest.py")
@@ -362,6 +364,8 @@ def main():
     ap.add_argument("--config", default="Release", choices=["Release", "Debug"])
     ap.add_argument("--unlock-all", action="store_true",
                     help="with no save on the console yet, start from a 100%% completed one")
+    ap.add_argument("--log", action="store_true",
+                    help="the Release build prints the debug log to xbWatson too")
     a = ap.parse_args()
     if sys.version_info < (3, 8):
         die("Python 3.8 or later is needed")
@@ -376,7 +380,7 @@ def main():
     step_tool()
     step_assets(version, rom)
     step_data()
-    step_xbox(version, a.unlock_all)
+    step_xbox(version, a.unlock_all, a.log)
     if not a.skip_build:
         step_build(a.config)
 

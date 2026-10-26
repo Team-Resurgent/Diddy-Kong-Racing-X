@@ -55,6 +55,14 @@ VehicleSoundData *racer_sound_init(s32 characterId, s32 vehicleId) {
     static s32 resetAmbient = TRUE;
 
 #ifdef TARGET_PC
+    // The table has rows for the car, hovercraft and plane only. The N64 read
+    // the flying car's and the loop-de-loop car's past its end; they sound as
+    // the plane and the car (Golden Balloon's mapping), not silent.
+    if (vehicleId == VEHICLE_FLYING_CAR) {
+        vehicleId = VEHICLE_PLANE;
+    } else if (vehicleId == VEHICLE_LOOPDELOOP) {
+        vehicleId = VEHICLE_CAR;
+    }
     // Only the standard vehicles of the ten characters have a sound asset (the
     // Dreamcast port's guard, dreamcast/audio_vehicle_dc.c): anything else would
     // read past the table. Racers without one are silent, as every consumer
@@ -198,6 +206,9 @@ void racer_sound_update(Object *obj, u32 buttonsPressed, u32 buttonsHeld, s32 ti
                         racer_sound_hovercraft(obj, buttonsPressed, buttonsHeld, ticksDelta);
                         break;
                     case VEHICLE_PLANE:
+#ifdef TARGET_PC
+                    case VEHICLE_FLYING_CAR: // its sound is the plane's (racer_sound_init)
+#endif
                         racer_sound_plane(obj, buttonsPressed, buttonsHeld, ticksDelta);
                         break;
                     default:
@@ -643,6 +654,21 @@ void racer_sound_plane(Object *obj, UNUSED u32 buttonsPressed, u32 buttonsHeld, 
     }
 }
 
+#ifdef TARGET_PC
+/**
+ * Stops a sound and forgets the handle it clears when it ends: the handle is
+ * freed with the racer's sound data (racer_sound_free), and the sound player
+ * would write through it into whatever reused that memory.
+ */
+static void racer_sound_stop_detach(SoundHandle *handle) {
+    if (*handle != NULL) {
+        sndp_stop(*handle);
+        (*handle)->userHandle = NULL;
+        *handle = NULL;
+    }
+}
+#endif
+
 /**
  * Stops all associated sounds and then frees the vehicle sound data from RAM.
  */
@@ -650,6 +676,17 @@ void racer_sound_free(Object *obj) {
     s32 i;
 
     gRacerSound = obj->racer->vehicleSound;
+#ifdef TARGET_PC
+    //!@bug The N64 left the spin-out sound playing, and every handle set to be
+    // cleared, in freed memory, when the sound ended (Golden Balloon's fix).
+    if (gRacerSound != NULL) {
+        racer_sound_stop_detach(&gRacerSound->soundHandle[0]);
+        racer_sound_stop_detach(&gRacerSound->soundHandle[1]);
+        racer_sound_stop_detach(&gRacerSound->engineIdleSoundHandle);
+        racer_sound_stop_detach(&gRacerSound->brakeSound);
+        racer_sound_stop_detach(&gRacerSound->spinoutSound);
+    }
+#endif
     if (gRacerSound != NULL) {
         for (i = 0; i != 2; i++) {
             if (gRacerSound->soundHandle[i] != NULL) {

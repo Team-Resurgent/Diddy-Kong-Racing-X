@@ -242,9 +242,11 @@ void xb_frame_done(void)
     last = now;
     if (sFramesShown % 600 == 599)
     {
+#ifdef DKRX_LOG
         if (xb_audio_gaps != lastGaps)
             xb_log("dkrx: sound ran short %ld times in 10 s; longest frame %u ms", (long)(xb_audio_gaps - lastGaps),
                    (unsigned)(longest / 1000000));
+#endif
         lastGaps = xb_audio_gaps;
         longest = 0;
     }
@@ -255,7 +257,9 @@ void xb_frame_done(void)
     xb_save_frame();
     if (xb_input_frame())
     {
+#ifdef DKRX_LOG
         xb_log("dkrx: to the dashboard");
+#endif
         XLaunchNewImage(NULL, NULL);
     }
 }

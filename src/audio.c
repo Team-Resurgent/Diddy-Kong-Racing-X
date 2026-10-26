@@ -31,6 +31,17 @@ extern void pc_swap16_buf(void *buf, u32 numBytes);
 // Audio is not initialized on PC (audio_init early-returns), so the public
 // music API no-ops. gMusicPlayer is created by audio_init, so it doubles as
 // the "music system initialized" flag.
+#if defined(TARGET_XBOX) && defined(DKRX_LOG)
+// The debug log (DKRX_LOG) has the game's sound requests to xbWatson: what was asked
+// for, whether it got a sound, and the volumes it plays at.
+extern void dkr_printf(const char *fmt, ...);
+extern s16 *gSoundGroupVolume;
+extern s32 gSoundGlobalVolume;
+extern s16 gNumActiveSounds;
+#define SOUND_LOG(...) dkr_printf(__VA_ARGS__)
+#else
+#define SOUND_LOG(...)
+#endif
 #define MUSIC_PC_GUARD(retval) \
     if (gMusicPlayer == NULL) \
     return retval
@@ -56,6 +67,11 @@ s32 gMusicSliderVolume = 256;
 s32 gDelayedSoundsCount = 0;
 u8 gMusicNextSeqID = SEQUENCE_NONE;
 u8 gJingleNextSeqID = SEQUENCE_NONE;
+#ifdef TARGET_PC
+// Queries left in which a jingle just handed to the player counts as playing,
+// until the player reports it so (music_jingle_playing).
+static s32 sJingleStarting;
+#endif
 UNUSED s32 D_800DC664 = 0;
 UNUSED s32 D_800DC668 = 0;
 s32 gGlobalMusicVolume = 256; // This is never not 256...
@@ -318,17 +334,37 @@ void audio_init(OSSched *sc) {
     synth_config.outputRate = 0;
     synth_config.heap = &gALHeap;
     amCreateAudioMgr(&synth_config, 12, sc);
+#ifdef TARGET_PC
+    // Bigger event queues (Golden Balloon's sizes, which it measured: music peaks
+    // past the N64's 120, sound effects reach 195 of 150). A full queue drops the
+    // event: a note's end, a stop, or the player's own periodic tick -- and a
+    // dropped stop left a looping ambient tune playing on the jingle player for
+    // good, every pickup jingle after it waiting behind it. The N64's audio
+    // thread emptied these sixty times a second; here they wait for the next
+    // audio tick, after the frame. (The heap grows to hold them, audiomgr.h.)
+    gMusicPlayer = sound_seqplayer_init(24, 256);
+#else
     gMusicPlayer = sound_seqplayer_init(24, 120);
+#endif
     set_voice_limit(gMusicPlayer, 18);
+#ifdef TARGET_PC
+    gJinglePlayer = sound_seqplayer_init(16, 256);
+#else
     gJinglePlayer = sound_seqplayer_init(16, 50);
+#endif
     gMusicSequenceData = mempool_alloc_safe(seqLength, COLOUR_TAG_CYAN);
     gJingleSequenceData = mempool_alloc_safe(seqLength, COLOUR_TAG_CYAN);
+#ifdef TARGET_PC
+    audConfig.maxEvents = 512;
+#else
     audConfig.maxEvents = 150;
+#endif
     audConfig.maxSounds = 32;
     audConfig.maxChannels = AUDIO_CHANNELS;
     audConfig.numGroups = 64;
     audConfig.heap = &gALHeap;
     sndp_init_player(&audConfig);
+    SOUND_LOG("dkrx: audio heap %d of %d bytes used\n", (s32) (gALHeap.cur - gALHeap.base), gALHeap.len);
     audioStartThread();
     sound_volume_change(VOLUME_NORMAL);
     mempool_free(addrPtr);
@@ -369,6 +405,9 @@ void sound_volume_reset(u8 skipReset) {
  */
 void sound_volume_change(s32 behaviour) {
     MUSIC_PC_GUARD();
+    if (behaviour != gAudioVolumeSetting) {
+        SOUND_LOG("dkrx: sound volume mode %d -> %d\n", gAudioVolumeSetting, behaviour);
+    }
     switch (behaviour) {
         case VOLUME_LOWER: // Mute most sound effects and half the volume of music.
             sndp_set_group_volume(0, 0);
@@ -629,6 +668,18 @@ void sound_update_queue(u8 updateRate) {
                 sound_play(gDelayedSounds[i].soundId, gDelayedSounds[i].handlePtr);
 
                 gDelayedSoundsCount -= 1;
+#ifdef TARGET_PC
+                //!@bug The N64 copied the next entry into slot i over and over,
+                // so with three or more waiting, the ones after the next were
+                // lost and the next played twice. Golden Balloon's fix: each
+                // one moves up a slot.
+                while (j < gDelayedSoundsCount) {
+                    gDelayedSounds[j].soundId = gDelayedSounds[j + 1].soundId;
+                    gDelayedSounds[j].timer = gDelayedSounds[j + 1].timer;
+                    gDelayedSounds[j].handlePtr = gDelayedSounds[j + 1].handlePtr;
+                    j++;
+                }
+#else
                 while (j < gDelayedSoundsCount) {
                     gDelayedSounds[i].soundId = gDelayedSounds[i + 1].soundId;
                     gDelayedSounds[i].timer = gDelayedSounds[i + 1].timer;
@@ -636,6 +687,7 @@ void sound_update_queue(u8 updateRate) {
                     j++;
                 }
                 j++;
+#endif
             } else {
                 i++;
             }
@@ -1162,7 +1214,17 @@ void music_jingle_pan_set(ALPan pan) {
  */
 void music_jingle_play(u8 seqID) {
     MUSIC_PC_GUARD();
+    SOUND_LOG("dkrx: jingle %d asked for; player state %d, next %d, current %d, volume %d (sfx relative %d)\n",
+              seqID, gJinglePlayer->state, gJingleNextSeqID, gCurrentJingleID, gJinglePlayer->vol, sfxRelativeVolume);
     gCanPlayJingle = TRUE;
+#ifdef TARGET_PC
+    // The jingle player still playing a tune the game no longer tracks (its stop
+    // was lost): mark it playing, so the start below stops it first instead of
+    // waiting behind it for ever.
+    if (gCurrentJingleID == SEQUENCE_NONE && gJinglePlayer->state == AL_PLAYING) {
+        gJinglePlaying = TRUE;
+    }
+#endif
     music_sequence_start(gCurrentJingleID = seqID, gJinglePlayer);
 }
 
@@ -1171,9 +1233,29 @@ void music_jingle_play(u8 seqID) {
  * Official Name: amDittyPlaying
  */
 u32 music_jingle_playing(void) {
+#ifdef TARGET_PC
+    // A jingle the game has asked for is playing from then on, as far as the
+    // game can tell. Here the player only takes it up when the audio manager
+    // next runs, after the frame (Platform/xbox/dkr_audio.c), so a query in
+    // between -- the ambient audio's update, every frame, right after a pickup
+    // asked for its jingle -- found it not playing, and its music_jingle_stop()
+    // dropped it: no sound for silver coins or keys. Queued (gJingleNextSeqID),
+    // or handed over and not yet started, it counts as playing.
+    if (gJinglePlayer->state == AL_PLAYING) {
+        sJingleStarting = 0;
+    }
+    if (gCurrentJingleID && gCanPlayJingle &&
+        (gJinglePlayer->state == AL_PLAYING || gJingleNextSeqID != SEQUENCE_NONE || sJingleStarting > 0)) {
+        if (gJinglePlayer->state != AL_PLAYING && gJingleNextSeqID == SEQUENCE_NONE) {
+            sJingleStarting--;
+        }
+        return gCurrentJingleID;
+    }
+#else
     if (gCurrentJingleID && gCanPlayJingle && (gJinglePlayer->state == AL_PLAYING)) {
         return gCurrentJingleID;
     }
+#endif
     gCanPlayJingle = FALSE;
     return SEQUENCE_NONE;
 }
@@ -1247,6 +1329,10 @@ void sound_play(u16 soundID, SoundHandle *handlePtr) {
             sndp_set_param(*handlePtr, AL_SNDP_PITCH_EVT, *((u32 *) &pitch));
         }
     }
+    SOUND_LOG("dkrx: sound %u (bite %d vol %d): %s; mute mode %d, groups %d %d %d %d %d, global %d, active %d\n",
+              soundID, soundBite, gSoundTable[soundID].volume, (*handlePtr != NULL) ? "started" : "NO SOUND STATE",
+              gAudioVolumeSetting, gSoundGroupVolume[0], gSoundGroupVolume[1], gSoundGroupVolume[2],
+              gSoundGroupVolume[3], gSoundGroupVolume[4], gSoundGlobalVolume, gNumActiveSounds);
 }
 
 /**
@@ -1489,6 +1575,10 @@ void music_sequence_init(ALCSPlayer *seqp, void *sequence, u8 *seqID, ALCSeq *se
                 sound_jingle_tempo_set(gSeqSoundTable[*seqID].tempo);
             }
             gCurrentJingleID = *seqID;
+#ifdef TARGET_PC
+            sJingleStarting = 30;
+#endif
+            SOUND_LOG("dkrx: jingle %d started, volume %d\n", *seqID, gJinglePlayer->vol);
         }
         *seqID = SEQUENCE_NONE;
     }
@@ -1508,10 +1598,18 @@ void music_sequence_stop(ALCSPlayer *seqPlayer) {
         gMusicPlaying = FALSE;
         gCurrentSequenceID = SEQUENCE_NONE;
         gMusicNextSeqID = SEQUENCE_NONE;
-    } else if (gJinglePlayer == seqPlayer && gJinglePlaying) {
+    } else if (gJinglePlayer == seqPlayer && (gJinglePlaying
+#ifdef TARGET_PC
+                                              // (or a tune nobody tracks: see music_jingle_play)
+                                              || (gCurrentJingleID == SEQUENCE_NONE && seqPlayer->state == AL_PLAYING)
+#endif
+                                                  )) {
         alCSPStop(seqPlayer);
         gJinglePlaying = FALSE;
         gJingleNextSeqID = SEQUENCE_NONE;
+#ifdef TARGET_PC
+        sJingleStarting = 0;
+#endif
     }
 }
 

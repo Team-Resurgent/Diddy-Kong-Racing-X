@@ -177,9 +177,11 @@ int xb_gfx_init(void)
 
     IDirect3DDevice8_Clear(sDev, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xFF000000, 0.0f, 0);
     IDirect3DDevice8_Present(sDev, NULL, NULL, NULL, NULL);
+#ifdef DKRX_LOG
     xb_log("gfx: %dx%d%s at %d Hz, the picture %dx%d at %d", sDispW, sDispH,
            (pp.Flags & D3DPRESENTFLAG_PROGRESSIVE) ? "p" : "i", sRefresh, (int)(320.0f * sScaleX),
            (int)(240.0f * sScaleY), (int)(sOffX + 0.5f));
+#endif
     return 0;
 }
 

@@ -151,6 +151,8 @@ int xb_audio_init(void)
     }
     SetThreadPriority(th, THREAD_PRIORITY_TIME_CRITICAL);
     CloseHandle(th);
+#ifdef DKRX_LOG
     xb_log("audio: %d Hz stereo, %d ms of stream", DKR_AUDIO_RATE, PACKETS * PACKET * 1000 / DKR_AUDIO_RATE);
+#endif
     return 0;
 }

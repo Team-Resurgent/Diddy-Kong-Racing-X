@@ -96,7 +96,9 @@ static void assets_init(void) {
         p[2] = t1;
         p[3] = t0;
     }
+#ifdef DKRX_LOG
     dkr_printf("ASSETS: lut %u bytes, data %u bytes\n", sAssetLutSize, sAssetsBinSize);
+#endif
 }
 
 u32 pc_asset_lut_size(void) {
@@ -304,15 +306,21 @@ static void eeprom_init(void) {
     }
     gEepromReady = 1;
     if (host_eeprom_load(gEeprom, PC_EEPROM_BYTES)) {
+#ifdef DKRX_LOG
         dkr_printf("EEPROM: the save was loaded\n");
+#endif
         return;
     }
 #ifdef EEPROM_PRESET_100
     memcpy(gEeprom, gEepromPreset, PC_EEPROM_BYTES);
+#ifdef DKRX_LOG
     dkr_printf("EEPROM: no save yet; starting from the 100%% image\n");
+#endif
 #else
     memset(gEeprom, 0xFF, PC_EEPROM_BYTES); // erased
+#ifdef DKRX_LOG
     dkr_printf("EEPROM: no save yet\n");
+#endif
 #endif
 }
 

@@ -20,7 +20,12 @@ typedef u32 uintptr_t;
 #define _UINTPTR_T_DECLARED
 #endif
 
-#ifdef NON_MATCHING
+#if defined(TARGET_XBOX) && !defined(DKRX_LOG)
+// The Xbox's Release build: the game's debug messages compile away (the Debug
+// build, and setup.py --log, keep them; tools/xbox/xbconfig.py).
+void isv_printf(const char *fmt, ...);
+#define stubbed_printf(...) ((void) 0)
+#elif defined(NON_MATCHING)
 void isv_printf(const char *fmt, ...);
 #define stubbed_printf isv_printf
 #else

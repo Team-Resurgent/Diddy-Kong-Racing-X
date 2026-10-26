@@ -86,7 +86,14 @@ void alEvtqPostEvent(ALEventQueue *evtq, ALEvent *evt, ALMicroTime delta)
         osSetIntMask(mask);
 #ifdef _DEBUG
         __osError(ERR_ALEVENTNOFREE, 0);
-#endif        
+#endif
+#if defined(TARGET_XBOX) && defined(DKRX_LOG)
+        {
+            /* the queue was full: this event is lost */
+            extern void dkr_printf(const char *fmt, ...);
+            dkr_printf("dkrx: audio event %d dropped, queue %p full\n", evt->type, (void *) evtq);
+        }
+#endif
         return;
     }
     
