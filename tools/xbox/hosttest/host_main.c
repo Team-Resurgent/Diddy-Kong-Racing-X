@@ -96,9 +96,39 @@ uint8_t *host_load_file(const char *name, uint32_t *size)
     return buf;
 }
 
+/* A script's buttons are the Xbox's that the N64's start on (xbox_input.c),
+ * turned into the N64's through the controls page's mapping, as on the Xbox. */
+static unsigned int script_inputs(uint16_t b)
+{
+    static const struct {
+        uint16_t bit;
+        int in;
+    } kStart[] = {
+        { HOST_BTN_A, DKR_IN_A },          { HOST_BTN_B, DKR_IN_B },          { HOST_BTN_Z, DKR_IN_X },
+        { HOST_BTN_R, DKR_IN_RT },         { HOST_BTN_L, DKR_IN_LCLICK },     { HOST_BTN_START, DKR_IN_START },
+        { HOST_BTN_CUP, DKR_IN_Y },        { HOST_BTN_CDOWN, DKR_IN_BLACK },  { HOST_BTN_CLEFT, DKR_IN_RLEFT },
+        { HOST_BTN_CRIGHT, DKR_IN_WHITE }, { HOST_BTN_UP, DKR_IN_UP },        { HOST_BTN_DOWN, DKR_IN_DOWN },
+        { HOST_BTN_LEFT, DKR_IN_LEFT },    { HOST_BTN_RIGHT, DKR_IN_RIGHT }, { HOST_BTN_MENU, DKR_IN_BACK },
+    };
+    unsigned int in = 0;
+    size_t i;
+
+    for (i = 0; i < sizeof(kStart) / sizeof(kStart[0]); i++)
+        if (b & kStart[i].bit)
+            in |= DKR_IN_BIT(kStart[i].in);
+    return in;
+}
+
 void host_pads_read(HostPad pads[HOST_PADS])
 {
+    int i;
+
     memcpy(pads, sPads, sizeof(sPads));
+    for (i = 0; i < HOST_PADS; i++)
+    {
+        pads[i].inputs = script_inputs(sPads[i].buttons);
+        pads[i].buttons = (uint16_t)dkr_controls_buttons(pads[i].inputs);
+    }
 }
 
 void host_rumble(int port, int on)
@@ -487,6 +517,13 @@ static void finish(void)
     exit(0);
 }
 
+/* the port's menu's Restart game and Exit to dashboard: the run ends there */
+void host_leave(int restart)
+{
+    printf("HOST: %s from the menu at frame %d\n", restart ? "restart" : "exit to the dashboard", sFrame);
+    finish();
+}
+
 /* --time: what the game's own work costs a frame, the rasteriser left out
  * (what the Xbox's CPU does; its GPU draws), every 120 frames */
 static int sTime;
@@ -626,7 +663,7 @@ static uint16_t parse_buttons(const char *s)
             case 'D': b |= HOST_BTN_CDOWN; break;
             case 'W': b |= HOST_BTN_CLEFT; break;
             case 'E': b |= HOST_BTN_CRIGHT; break;
-            case 'M': b |= HOST_BTN_MENU; break; /* the settings menu (the right stick's click) */
+            case 'M': b |= HOST_BTN_MENU; break; /* the port's menu (Back) */
             default: break;
         }
     }

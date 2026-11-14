@@ -35,7 +35,7 @@ machine.
 * 60 frames a second, with the game's own 30 Hz physics
 * Drawn at the television's resolution, not the N64's 320x240: 720p and 480p
   (progressive or interlaced) following the dashboard, the 4:3 picture with
-  black bars on a 16:9 screen, or true widescreen from the settings menu
+  black bars on a 16:9 screen, or true widescreen from the in-game menu
 * The N64's full sound: music, effects, every racer's engine (which the
   decomp's Linux port had left silent) and the reverb in caves and tunnels
   (which its Dreamcast port drops to save CPU)
@@ -44,9 +44,10 @@ machine.
   in it too, kept on the hard disk
 * A chase camera that would slip into a wall (in some tunnels) is drawn in
   closer to your racer instead of looking through it
-* A settings menu of the port's own, on the right stick's click:
-  widescreen, the camera at walls, inverted plane controls, rumble
-  strength, 30 or 60 FPS, sharp or smooth textures
+* An in-game menu on **Back**: fully remappable controls, options
+  (widescreen, the camera at walls, inverted plane controls, rumble
+  strength, 30 or 60 FPS, sharp or smooth textures), restarting the game
+  and exiting to the dashboard
 * Saves (the three adventure files, best times, options) kept on the Xbox's
   hard disk (dashboard > Memory > Diddy Kong Racing X)
 * Optional: start from a 100%-completed save (`--unlock-all`, below)
@@ -141,21 +142,35 @@ Xbox Debugger (RXDK). The build lands where the command-line one does:
 | BLACK | C-down | course directions; the split-screen HUD |
 | WHITE | C-right | the speedometer |
 | Right stick | C buttons | as above, by direction |
-| Right stick click | | the port's settings menu (below) |
-| BACK | L | |
+| Left stick click | L | (the game never reads it) |
+| Right stick click | | free for a button of your choice |
+| BACK | | the in-game menu (below) |
 | START | START | pause |
 
-Player 1 is the first controller plugged in, player 2 the next, and so on.
-**BACK + START + both triggers** returns to the dashboard.
+Those are the defaults: every N64 button can be moved to any Xbox button in
+the in-game menu's *Controls* page (below). Player 1 is the first controller
+plugged in, player 2 the next, and so on. **BACK + START + both triggers**
+returns to the dashboard.
 
-## Settings menu
+## In-game menu
 
-**Click the right stick** at any time for the port's own settings. The game
-stops exactly where it is while the menu is open, mid-race included, and
-carries on from there when it closes (**B**, the right stick again, or *Back
-to the game*). Up and down choose a setting, left and right (or **A**)
-change it. Every setting starts as the game plays without it, and they are
-kept on the hard disk (`settings.bin`, beside the save).
+**Press BACK** (on its own) at any time for the port's own menu, laid out as
+in Ocarina Of Time-X and Majora's-X. The game stops exactly where it is
+while the menu is open, mid-race included, and carries on from there when
+it closes (**BACK** again, **B** on the first page, or *Back to the game*).
+
+| Page | |
+| --- | --- |
+| Back to the game | |
+| Controls | the buttons (below) and the rumble strength |
+| Options | the settings below |
+| Restart game | starts the game again from the title (asks first) |
+| Exit to dashboard | (asks first) |
+
+The saves are written before the game restarts or exits. On the Options and
+Controls pages, up and down choose a setting and left and right change it.
+Every setting starts as the game plays without it, and they are kept on the
+hard disk (`settings.bin`, beside the save).
 
 | Setting | Choices | |
 | --- | --- | --- |
@@ -165,6 +180,20 @@ kept on the hard disk (`settings.bin`, beside the save).
 | Rumble | **High**, medium, low, off | |
 | Frame rate | **60 FPS**, 30 FPS | 30 is the N64's: each frame a whole physics step, none drawn in between |
 | Textures | **Smooth**, sharp | sharp: every texture unfiltered |
+
+### Controls
+
+*Controls* lists the N64's buttons and the Xbox buttons each is on. **A**
+puts a button on the next Xbox button you press instead, **X** adds one
+beside the ones it has (two Xbox buttons for one N64 button, as X and the
+left trigger both fire by default), and *Reset to defaults* puts everything
+back as in the table above. **BACK** cancels a button being asked for. The
+left stick stays the N64 stick and BACK stays the menu. The mapping is the
+same for every controller, and is kept with the other settings.
+
+The menu itself always goes by the Xbox buttons as printed (**A** chooses,
+**B** goes back), whatever they have been moved to, so a mapping can always
+be put right.
 
 ## Saving
 
@@ -211,7 +240,7 @@ display for the widescreen setting.
 | `Platform/xbox/dkr_host.c` | the N64 OS underneath: the asset "ROM", controllers, EEPROM, Controller and Rumble Paks, timers |
 | `Platform/xbox/dkr_audio.c` | the audio interface, running the game's audio manager after each frame |
 | `Platform/xbox/dkr_scene.c`, `dkr_boot.c` | the game's hooks, and the way in |
-| `Platform/xbox/dkr_menu.c`, `dkr_overlay.c`, `dkr_settings.c` | the settings menu: freezing the game, drawing in HD, and the settings kept on disk |
+| `Platform/xbox/dkr_menu.c`, `dkr_overlay.c`, `dkr_settings.c` | the in-game menu: freezing the game, drawing in HD, and the settings and controls kept on disk |
 | `linux/audio_hle.c` | the RSP audio microcode, in C (the Linux port's, unchanged) |
 | `dreamcast/frame_interp.c` | 60 fps interpolation (the Dreamcast port's, unchanged) |
 | `Platform/xbox/gfx_xbox.c` | Direct3D 8 |
@@ -232,7 +261,7 @@ committed is a ROM, game data, a build output, or a path on your own machine.
   and Linux ports this is built from
 * The KallistiOS and enDjinn projects behind the Dreamcast port
 * The RXDK
-* The settings menu's font, [Fredoka](https://github.com/hafontia/Fredoka-One)
+* The in-game menu's font, [Fredoka](https://github.com/hafontia/Fredoka-One)
   by the Fredoka Project Authors, under the SIL Open Font License 1.1
   (`Platform/xbox/fonts/OFL.txt`)
 * [stb_truetype](https://github.com/nothings/stb) by Sean Barrett, which

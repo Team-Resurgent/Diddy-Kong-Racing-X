@@ -25,8 +25,8 @@
 #define HOST_BTN_CDOWN 0x0004
 #define HOST_BTN_CLEFT 0x0002
 #define HOST_BTN_CRIGHT 0x0001
-// Not the N64's: a bit its controller never sets, for the port's settings menu
-// (the right stick's click on the Xbox). Kept from the game (dkr_host.c).
+// Not the N64's: a bit its controller never sets, kept from the game
+// (dkr_host.c). The harness's scripts press the port's menu with it (Back).
 #define HOST_BTN_MENU 0x0080
 
 // One N64 controller as the game sees it.
@@ -34,6 +34,10 @@ typedef struct {
     int connected;
     uint16_t buttons;
     int8_t stickX, stickY; // -80..80, up positive
+    // the pad's own buttons, before the controls page's mapping turned them
+    // into the N64's (dkr_settings.h's DKR_IN_BIT's): what the port's menu
+    // goes by, so no mapping can lock anyone out of it
+    unsigned int inputs;
 } HostPad;
 
 // --- the platform provides ---------------------------------------------------
@@ -52,6 +56,10 @@ void host_pads_read(HostPad pads[HOST_PADS]);
 
 // The rumble pak motor in an N64 port, on or off.
 void host_rumble(int port, int on);
+
+// The port's menu's Restart game (nonzero) and Exit to dashboard: the saves
+// written first, and the game left. Does not return.
+void host_leave(int restart);
 
 // The EEPROM image kept from the last run: nonzero when `buf` was filled.
 int host_eeprom_load(uint8_t *buf, int size);

@@ -15,9 +15,13 @@
  *   Black ................ C-down  course directions, the multiplayer HUD
  *   White ................ C-right the speedometer
  *   Right stick .......... the C buttons
- *   Right stick click .... the port's settings menu (dkr_menu.c)
- *   Back ................. L
+ *   Left stick click ..... L (which the game never reads)
+ *   Back ................. the port's menu (dkr_menu.c), not the game's
  *   Start ................ Start
+ *
+ * That is where the buttons start: the port's menu's Controls page
+ * (dkr_menu.c) puts any N64 button on any of them, every pad alike
+ * (dkr_settings.c keeps the mapping).
  *
  * Back + Start + both triggers is the dashboard.
  *
@@ -132,7 +136,8 @@ static void read_pad(Pad *p)
 {
     XINPUT_STATE s;
     const XINPUT_GAMEPAD *g;
-    uint16_t b = 0;
+    unsigned int in = 0;
+    uint16_t b;
     int x, y, lt, rt;
 
     memset(&p->pad, 0, sizeof(p->pad));
@@ -144,41 +149,54 @@ static void read_pad(Pad *p)
     lt = g->bAnalogButtons[XINPUT_GAMEPAD_LEFT_TRIGGER] > PRESSED;
     rt = g->bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] > PRESSED;
 
+    /* the pad's own inputs first, then the N64 buttons they are on */
     if (g->bAnalogButtons[XINPUT_GAMEPAD_A] > PRESSED)
-        b |= HOST_BTN_A;
+        in |= DKR_IN_BIT(DKR_IN_A);
     if (g->bAnalogButtons[XINPUT_GAMEPAD_B] > PRESSED)
-        b |= HOST_BTN_B;
-    if (g->bAnalogButtons[XINPUT_GAMEPAD_X] > PRESSED || lt)
-        b |= HOST_BTN_Z;
+        in |= DKR_IN_BIT(DKR_IN_B);
+    if (g->bAnalogButtons[XINPUT_GAMEPAD_X] > PRESSED)
+        in |= DKR_IN_BIT(DKR_IN_X);
+    if (g->bAnalogButtons[XINPUT_GAMEPAD_Y] > PRESSED)
+        in |= DKR_IN_BIT(DKR_IN_Y);
+    if (g->bAnalogButtons[XINPUT_GAMEPAD_BLACK] > PRESSED)
+        in |= DKR_IN_BIT(DKR_IN_BLACK);
+    if (g->bAnalogButtons[XINPUT_GAMEPAD_WHITE] > PRESSED)
+        in |= DKR_IN_BIT(DKR_IN_WHITE);
+    if (lt)
+        in |= DKR_IN_BIT(DKR_IN_LT);
     if (rt)
-        b |= HOST_BTN_R;
-    if (g->bAnalogButtons[XINPUT_GAMEPAD_Y] > PRESSED || g->sThumbRY > CSTICK)
-        b |= HOST_BTN_CUP;
-    if (g->bAnalogButtons[XINPUT_GAMEPAD_BLACK] > PRESSED || g->sThumbRY < -CSTICK)
-        b |= HOST_BTN_CDOWN;
-    if (g->bAnalogButtons[XINPUT_GAMEPAD_WHITE] > PRESSED || g->sThumbRX > CSTICK)
-        b |= HOST_BTN_CRIGHT;
-    if (g->sThumbRX < -CSTICK)
-        b |= HOST_BTN_CLEFT;
-    if (g->wButtons & XINPUT_GAMEPAD_BACK)
-        b |= HOST_BTN_L;
+        in |= DKR_IN_BIT(DKR_IN_RT);
     if (g->wButtons & XINPUT_GAMEPAD_START)
-        b |= HOST_BTN_START;
-    if (g->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB)
-        b |= HOST_BTN_MENU; /* the settings menu (dkr_menu.c), not the game's */
+        in |= DKR_IN_BIT(DKR_IN_START);
+    if (g->wButtons & XINPUT_GAMEPAD_BACK)
+        in |= DKR_IN_BIT(DKR_IN_BACK);
+    if (g->wButtons & XINPUT_GAMEPAD_LEFT_THUMB)
+        in |= DKR_IN_BIT(DKR_IN_LCLICK);
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_UP)
-        b |= HOST_BTN_UP;
+        in |= DKR_IN_BIT(DKR_IN_UP);
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
-        b |= HOST_BTN_DOWN;
+        in |= DKR_IN_BIT(DKR_IN_DOWN);
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
-        b |= HOST_BTN_LEFT;
+        in |= DKR_IN_BIT(DKR_IN_LEFT);
     if (g->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
-        b |= HOST_BTN_RIGHT;
+        in |= DKR_IN_BIT(DKR_IN_RIGHT);
+    if (g->sThumbRY > CSTICK)
+        in |= DKR_IN_BIT(DKR_IN_RUP);
+    if (g->sThumbRY < -CSTICK)
+        in |= DKR_IN_BIT(DKR_IN_RDOWN);
+    if (g->sThumbRX < -CSTICK)
+        in |= DKR_IN_BIT(DKR_IN_RLEFT);
+    if (g->sThumbRX > CSTICK)
+        in |= DKR_IN_BIT(DKR_IN_RRIGHT);
+    if (g->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB)
+        in |= DKR_IN_BIT(DKR_IN_RCLICK);
+    b = (uint16_t)dkr_controls_buttons(in); /* (Back on none: it is the menu's) */
 
     x = axis(g->sThumbLX);
     y = axis(g->sThumbLY);
     /* the menus and the steering read the stick, so the D-pad drives it too
-     * on an axis the stick leaves idle (the Dreamcast port does the same) */
+     * on an axis the stick leaves idle (the Dreamcast port does the same):
+     * the N64's D-pad, wherever the controls page put it */
     if (x > -STICK_IDLE && x < STICK_IDLE)
     {
         if (b & HOST_BTN_LEFT)
@@ -194,6 +212,7 @@ static void read_pad(Pad *p)
             y = -STICK_MAX;
     }
     p->pad.buttons = b;
+    p->pad.inputs = in;
     p->pad.stickX = (int8_t)x;
     p->pad.stickY = (int8_t)y;
     p->quit = (g->wButtons & XINPUT_GAMEPAD_BACK) && (g->wButtons & XINPUT_GAMEPAD_START) && lt && rt;

@@ -1,5 +1,5 @@
-// dkr_settings.h -- the port's own settings: what the settings menu
-// (dkr_menu.c, the right stick's click) changes, kept on the hard disk beside
+// dkr_settings.h -- the port's own settings: what the port's menu
+// (dkr_menu.c, on Back) changes, kept on the hard disk beside
 // the save. The game's files read them too (under TARGET_XBOX), so plain C
 // types only, as dkr_host.h.
 //
@@ -43,6 +43,62 @@ void dkr_widescreen_framed(int framed);
 // Widescreen for the 3D world: the camera's projection and how the
 // interpreter lays the scene out.
 int dkr_widescreen_world(void);
+
+// The controls page (dkr_menu.c): the N64's buttons, and the Xbox inputs that
+// press each, every pad alike. The left stick is the N64 stick, and Back the
+// menu's: neither is offered.
+enum {
+    DKR_PAD_A,
+    DKR_PAD_B,
+    DKR_PAD_Z,
+    DKR_PAD_R,
+    DKR_PAD_L,
+    DKR_PAD_START,
+    DKR_PAD_CUP,
+    DKR_PAD_CDOWN,
+    DKR_PAD_CLEFT,
+    DKR_PAD_CRIGHT,
+    DKR_PAD_UP,
+    DKR_PAD_DOWN,
+    DKR_PAD_LEFT,
+    DKR_PAD_RIGHT,
+    DKR_PAD_COUNT
+};
+enum {
+    DKR_IN_A,
+    DKR_IN_B,
+    DKR_IN_X,
+    DKR_IN_Y,
+    DKR_IN_BLACK,
+    DKR_IN_WHITE,
+    DKR_IN_LT,
+    DKR_IN_RT,
+    DKR_IN_START,
+    DKR_IN_BACK,
+    DKR_IN_LCLICK,
+    DKR_IN_UP, // the D-pad
+    DKR_IN_DOWN,
+    DKR_IN_LEFT,
+    DKR_IN_RIGHT,
+    DKR_IN_RUP, // the right stick's directions
+    DKR_IN_RDOWN,
+    DKR_IN_RLEFT,
+    DKR_IN_RRIGHT,
+    DKR_IN_RCLICK,
+    DKR_IN_COUNT
+};
+#define DKR_IN_BIT(in) (1u << (in))
+// the inputs a button can go on: all but Back
+#define DKR_IN_ALL ((DKR_IN_BIT(DKR_IN_COUNT) - 1u) & ~DKR_IN_BIT(DKR_IN_BACK))
+
+// the inputs (DKR_IN_BIT's) that press an N64 button, and setting them
+unsigned int dkr_control(int pad);
+void dkr_control_set(int pad, unsigned int inputs);
+void dkr_controls_reset(void);
+// the Xbox inputs held, as the N64's buttons (dkr_host.h's HOST_BTN_*)
+unsigned int dkr_controls_buttons(unsigned int inputs);
+const char *dkr_control_name(int pad);
+const char *dkr_input_name(int in);
 
 // The stored form, for the platform to keep (dkr_host.h).
 const unsigned char *dkr_settings_image(void);

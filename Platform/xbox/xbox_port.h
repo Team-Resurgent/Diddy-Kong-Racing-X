@@ -56,5 +56,6 @@ void xb_save_init(void);
 /* once a frame: writes the EEPROM and the paks out once the game has finished
  * writing them */
 void xb_save_frame(void);
+void xb_save_flush(void);
 
 #endif /* DKRX_XBOX_PORT_H */

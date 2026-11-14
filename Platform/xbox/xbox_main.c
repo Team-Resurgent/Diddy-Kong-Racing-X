@@ -260,8 +260,21 @@ void xb_frame_done(void)
 #ifdef DKRX_LOG
         xb_log("dkrx: to the dashboard");
 #endif
+        xb_save_flush();
         XLaunchNewImage(NULL, NULL);
     }
+}
+
+/* the port's menu's Restart game and Exit to dashboard */
+void host_leave(int restart)
+{
+#ifdef DKRX_LOG
+    xb_log(restart ? "dkrx: restarting" : "dkrx: to the dashboard");
+#endif
+    xb_save_flush();
+    if (restart)
+        XLaunchNewImage("D:\\default.xbe", NULL);
+    XLaunchNewImage(NULL, NULL);
 }
 
 /* ----------------------------------------------------------- start */

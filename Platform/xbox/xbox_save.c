@@ -219,6 +219,20 @@ static int store(int slot)
     return 1;
 }
 
+/* everything waiting to be stored, stored now: the game is being left */
+void xb_save_flush(void)
+{
+    int i;
+
+    for (i = 0; i < SLOTS; i++)
+    {
+        if (sQuiet[i] < 0)
+            continue;
+        sQuiet[i] = -1;
+        store(i);
+    }
+}
+
 void xb_save_frame(void)
 {
     int i;
